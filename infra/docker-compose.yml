@@ -1,0 +1,29 @@
+﻿version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: subtrack
+      POSTGRES_USER: subtrack
+      POSTGRES_PASSWORD: subtrack
+
+  backend:
+    build:
+      context: ../apps/backend
+      dockerfile: ../../infra/docker/backend.Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+  web:
+    build:
+      context: ../apps/web
+      dockerfile: ../../infra/docker/web.Dockerfile
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend

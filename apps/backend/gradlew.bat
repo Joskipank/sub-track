@@ -1,0 +1,2 @@
+﻿@echo off
+echo Gradle wrapper is not initialized. Run: gradle wrapper
