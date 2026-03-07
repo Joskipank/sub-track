@@ -10,7 +10,7 @@ const DashboardScreen = () => {
       <Text style={styles.title}>Dashboard</Text>
       <Text style={styles.subtitle}>You are signed in.</Text>
       <View style={styles.action}>
-        <Button title="Sign out" onPress={signOut} />
+        <Button title="Sign out" onPress={() => void signOut()} />
       </View>
     </View>
   );

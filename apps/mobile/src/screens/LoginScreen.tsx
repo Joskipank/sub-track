@@ -15,7 +15,7 @@ const LoginScreen = () => {
     <View style={styles.container}>
       <Text style={styles.title}>Login</Text>
       <View style={styles.action}>
-        <Button title="Sign in (demo)" onPress={signIn} />
+        <Button title="Sign in (demo)" onPress={() => void signIn()} />
       </View>
       <Button title="Go to register" onPress={() => navigation.navigate("Register")} />
     </View>

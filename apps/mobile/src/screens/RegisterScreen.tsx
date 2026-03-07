@@ -15,7 +15,7 @@ const RegisterScreen = () => {
     <View style={styles.container}>
       <Text style={styles.title}>Register</Text>
       <View style={styles.action}>
-        <Button title="Create account (demo)" onPress={signIn} />
+        <Button title="Create account (demo)" onPress={() => void signIn()} />
       </View>
       <Button title="Back to login" onPress={() => navigation.navigate("Login")} />
     </View>

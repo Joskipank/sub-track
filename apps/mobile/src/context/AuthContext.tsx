@@ -1,23 +1,56 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { tokenStorage } from "../storage/tokenStorage";
 
 type AuthContextValue = {
   isAuthenticated: boolean;
-  signIn: () => void;
-  signOut: () => void;
+  isAuthLoading: boolean;
+  signIn: () => Promise<void>;
+  signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const bootstrapAuth = async () => {
+      try {
+        const token = await tokenStorage.getToken();
+        if (isMounted) {
+          setIsAuthenticated(Boolean(token));
+        }
+      } finally {
+        if (isMounted) {
+          setIsAuthLoading(false);
+        }
+      }
+    };
+
+    void bootstrapAuth();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const value = useMemo(
     () => ({
       isAuthenticated,
-      signIn: () => setIsAuthenticated(true),
-      signOut: () => setIsAuthenticated(false)
+      isAuthLoading,
+      signIn: async () => {
+        await tokenStorage.setToken("demo-token");
+        setIsAuthenticated(true);
+      },
+      signOut: async () => {
+        await tokenStorage.clearToken();
+        setIsAuthenticated(false);
+      }
     }),
-    [isAuthenticated]
+    [isAuthenticated, isAuthLoading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
