@@ -2,8 +2,8 @@ package com.subscriptionmanager.forecast.controller;
 
 import com.subscriptionmanager.forecast.dto.ForecastResponse;
 import com.subscriptionmanager.forecast.service.ForecastService;
+import com.subscriptionmanager.security.CurrentUserService;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -13,14 +13,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class ForecastController {
 
     private final ForecastService forecastService;
+    private final CurrentUserService currentUserService;
 
-    public ForecastController(ForecastService forecastService) {
+    public ForecastController(ForecastService forecastService, CurrentUserService currentUserService) {
         this.forecastService = forecastService;
+        this.currentUserService = currentUserService;
     }
 
     @GetMapping
-    public ForecastResponse forecast(@RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId,
-                                     @RequestParam(defaultValue = "12") int months) {
+    public ForecastResponse forecast(@RequestParam(defaultValue = "12") int months) {
+        Long userId = currentUserService.requireCurrentUserId();
         return forecastService.forecast(userId, months);
     }
 }

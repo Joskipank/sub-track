@@ -1,29 +1,119 @@
 package com.subscriptionmanager.subscription.service;
 
+import com.subscriptionmanager.common.enums.SourceType;
+import com.subscriptionmanager.common.enums.SubscriptionStatus;
+import com.subscriptionmanager.entity.Category;
+import com.subscriptionmanager.entity.Subscription;
+import com.subscriptionmanager.entity.User;
+import com.subscriptionmanager.exception.ApiException;
+import com.subscriptionmanager.repository.CategoryRepository;
+import com.subscriptionmanager.repository.SubscriptionRepository;
+import com.subscriptionmanager.repository.UserRepository;
 import com.subscriptionmanager.subscription.dto.SubscriptionRequest;
 import com.subscriptionmanager.subscription.dto.SubscriptionResponse;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Locale;
 import java.util.List;
 
 @Service
 public class SubscriptionServiceImpl implements SubscriptionService {
+
+    private final SubscriptionRepository subscriptionRepository;
+    private final CategoryRepository categoryRepository;
+    private final UserRepository userRepository;
+
+    public SubscriptionServiceImpl(
+            SubscriptionRepository subscriptionRepository,
+            CategoryRepository categoryRepository,
+            UserRepository userRepository
+    ) {
+        this.subscriptionRepository = subscriptionRepository;
+        this.categoryRepository = categoryRepository;
+        this.userRepository = userRepository;
+    }
+
     @Override
+    @Transactional(readOnly = true)
     public List<SubscriptionResponse> list(Long userId) {
-        return List.of();
+        return subscriptionRepository.findByUserIdOrderByNextBillingDateAsc(userId)
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public SubscriptionResponse getById(Long userId, Long id) {
+        Subscription subscription = subscriptionRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new ApiException("Subscription not found"));
+        return toResponse(subscription);
+    }
+
+    @Override
+    @Transactional
     public SubscriptionResponse create(Long userId, SubscriptionRequest request) {
-        return null;
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException("User not found"));
+
+        Subscription subscription = new Subscription();
+        subscription.setUser(user);
+        subscription.setSourceType(SourceType.MANUAL);
+        applyRequest(subscription, request);
+
+        Subscription saved = subscriptionRepository.save(subscription);
+        return toResponse(saved);
     }
 
     @Override
+    @Transactional
     public SubscriptionResponse update(Long userId, Long id, SubscriptionRequest request) {
-        return null;
+        Subscription subscription = subscriptionRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new ApiException("Subscription not found"));
+
+        applyRequest(subscription, request);
+        Subscription saved = subscriptionRepository.save(subscription);
+        return toResponse(saved);
     }
 
     @Override
+    @Transactional
     public void delete(Long userId, Long id) {
+        Subscription subscription = subscriptionRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new ApiException("Subscription not found"));
+        subscriptionRepository.delete(subscription);
+    }
+
+    private void applyRequest(Subscription subscription, SubscriptionRequest request) {
+        subscription.setServiceName(request.serviceName().trim());
+        subscription.setAmount(request.amount());
+        subscription.setCurrency(request.currency().trim().toUpperCase(Locale.ROOT));
+        subscription.setBillingPeriod(request.billingPeriod());
+        subscription.setNextBillingDate(request.nextBillingDate());
+        subscription.setStatus(request.status() == null ? SubscriptionStatus.ACTIVE : request.status());
+
+        if (request.categoryId() == null) {
+            subscription.setCategory(null);
+            return;
+        }
+
+        Category category = categoryRepository.findById(request.categoryId())
+                .orElseThrow(() -> new ApiException("Category not found"));
+        subscription.setCategory(category);
+    }
+
+    private SubscriptionResponse toResponse(Subscription subscription) {
+        String categoryName = subscription.getCategory() == null ? null : subscription.getCategory().getName();
+        return new SubscriptionResponse(
+                subscription.getId(),
+                subscription.getServiceName(),
+                categoryName,
+                subscription.getAmount(),
+                subscription.getCurrency(),
+                subscription.getBillingPeriod(),
+                subscription.getNextBillingDate(),
+                subscription.getStatus()
+        );
     }
 }
