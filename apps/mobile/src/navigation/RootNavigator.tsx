@@ -2,7 +2,7 @@ import React from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../types/navigation";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import AuthStack from "./AuthStack";
 import MainTabs from "./MainTabs";
 
