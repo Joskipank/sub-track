@@ -2,7 +2,9 @@ import React, { useState } from "react";
 import { Button, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { ApiError } from "../api/httpClient";
 import { useAuth } from "../hooks/useAuth";
+import { useI18n } from "../context/SettingsContext";
 import type { AuthStackParamList } from "../types/navigation";
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, "Login">;
@@ -10,14 +12,16 @@ type LoginScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, "
 const LoginScreen = () => {
   const navigation = useNavigation<LoginScreenNavigationProp>();
   const { signIn } = useAuth();
+  const { tr } = useI18n();
   const [email, setEmail] = useState("demo@subtrack.app");
   const [password, setPassword] = useState("demo1234");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const onLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      setError("Enter email and password.");
+      setError(tr("enterEmailPassword"));
       return;
     }
 
@@ -26,7 +30,12 @@ const LoginScreen = () => {
       setError(null);
       await signIn({ email: email.trim(), password });
     } catch (loginError) {
-      const message = loginError instanceof Error ? loginError.message : "Login failed.";
+      const message =
+        loginError instanceof ApiError && loginError.status === 400
+          ? "Invalid email or password format."
+          : loginError instanceof Error
+            ? loginError.message
+            : tr("loginFailed");
       setError(message);
     } finally {
       setIsSubmitting(false);
@@ -35,27 +44,30 @@ const LoginScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Login</Text>
+      <Text style={styles.title}>{tr("login")}</Text>
       <TextInput
         autoCapitalize="none"
         keyboardType="email-address"
-        placeholder="Email"
+        placeholder={tr("email")}
         style={styles.input}
         value={email}
         onChangeText={setEmail}
       />
-      <TextInput
-        placeholder="Password"
-        secureTextEntry
-        style={styles.input}
-        value={password}
-        onChangeText={setPassword}
-      />
+      <View style={styles.passwordRow}>
+        <TextInput
+          placeholder={tr("password")}
+          secureTextEntry={!showPassword}
+          style={[styles.input, styles.passwordInput]}
+          value={password}
+          onChangeText={setPassword}
+        />
+        <Button title={showPassword ? tr("hide") : tr("show")} onPress={() => setShowPassword((prev) => !prev)} />
+      </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <View style={styles.action}>
-        <Button disabled={isSubmitting} title={isSubmitting ? "Signing in..." : "Sign in"} onPress={onLogin} />
+        <Button disabled={isSubmitting} title={isSubmitting ? tr("signingIn") : tr("signIn")} onPress={onLogin} />
       </View>
-      <Button title="Go to register" onPress={() => navigation.navigate("Register")} />
+      <Button title={tr("goToRegister")} onPress={() => navigation.navigate("Register")} />
     </View>
   );
 };
@@ -79,6 +91,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10
+  },
+  passwordRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
+  },
+  passwordInput: {
+    flex: 1
   },
   action: {
     width: "100%"

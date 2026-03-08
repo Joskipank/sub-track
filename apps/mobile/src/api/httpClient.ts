@@ -1,8 +1,56 @@
 import axios from "axios";
+import { API_BASE_URL } from "../constants/api";
+
+export class ApiError extends Error {
+  status?: number;
+  details?: unknown;
+}
+
+export const mapApiError = (error: unknown): ApiError => {
+  if (!axios.isAxiosError(error)) {
+    const unknownError = new ApiError("Unexpected error.");
+    unknownError.details = error;
+    return unknownError;
+  }
+
+  const status = error.response?.status;
+  const messageFromBody =
+    (error.response?.data as { message?: string; error?: string } | undefined)?.message ??
+    (error.response?.data as { message?: string; error?: string } | undefined)?.error;
+
+  const message =
+    status === 401
+      ? "Unauthorized. Please sign in again."
+      : status === 400
+        ? messageFromBody || "Invalid request payload."
+        : messageFromBody || error.message || "Network error.";
+
+  const apiError = new ApiError(message);
+  apiError.status = status;
+  apiError.details = error.response?.data;
+  return apiError;
+};
 
 export const httpClient = axios.create({
-  baseURL: process.env.EXPO_PUBLIC_API_URL || "http://localhost:8080/api"
+  baseURL: API_BASE_URL,
+  timeout: 15000
 });
+
+let unauthorizedHandler: (() => void | Promise<void>) | null = null;
+
+export const setUnauthorizedHandler = (handler: (() => void | Promise<void>) | null) => {
+  unauthorizedHandler = handler;
+};
+
+httpClient.interceptors.response.use(
+  (response) => response,
+  (error: unknown) => {
+    if (axios.isAxiosError(error) && error.response?.status === 401 && unauthorizedHandler) {
+      void unauthorizedHandler();
+    }
+    return Promise.reject(mapApiError(error));
+  }
+);
 
 export const setAuthToken = (token: string | null) => {
   if (token) {
