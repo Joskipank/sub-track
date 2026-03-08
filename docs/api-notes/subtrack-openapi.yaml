@@ -174,17 +174,11 @@ paths:
       tags: [analytics]
       parameters:
         - in: query
-          name: from
+          name: period
           required: true
           schema:
             type: string
-            format: date
-        - in: query
-          name: to
-          required: true
-          schema:
-            type: string
-            format: date
+            enum: [month, year]
       responses:
         '200':
           description: Analytics summary
@@ -192,6 +186,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnalyticsSummaryResponse'
+        '400':
+          description: Invalid period
+  /api/v1/analytics/by-category:
+    get:
+      tags: [analytics]
+      parameters:
+        - in: query
+          name: period
+          required: true
+          schema:
+            type: string
+            enum: [month, year]
+      responses:
+        '200':
+          description: Analytics by category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsByCategoryResponse'
+        '400':
+          description: Invalid period
+  /api/v1/analytics/forecast:
+    get:
+      tags: [analytics]
+      responses:
+        '200':
+          description: Monthly and yearly forecast
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsForecastResponse'
   /api/v1/imports/start:
     post:
       tags: [imports]
@@ -389,15 +414,72 @@ components:
     AnalyticsSummaryResponse:
       type: object
       properties:
-        totalMonthly:
-          type: number
-          format: double
-        totalYearly:
+        period:
+          type: string
+          enum: [month, year]
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        totalAmount:
           type: number
           format: double
         activeSubscriptions:
           type: integer
           format: int64
+        currency:
+          type: string
+          nullable: true
+    AnalyticsByCategoryResponse:
+      type: object
+      properties:
+        period:
+          type: string
+          enum: [month, year]
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        totalAmount:
+          type: number
+          format: double
+        currency:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalyticsCategoryItemResponse'
+    AnalyticsCategoryItemResponse:
+      type: object
+      properties:
+        category:
+          type: string
+        amount:
+          type: number
+          format: double
+        sharePercent:
+          type: number
+          format: double
+        subscriptionsCount:
+          type: integer
+          format: int32
+    AnalyticsForecastResponse:
+      type: object
+      properties:
+        monthForecast:
+          type: number
+          format: double
+        yearForecast:
+          type: number
+          format: double
+        currency:
+          type: string
+          nullable: true
     ImportStartRequest:
       type: object
       required: [provider]

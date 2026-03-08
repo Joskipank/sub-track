@@ -1,15 +1,15 @@
 package com.subscriptionmanager.analytics.controller;
 
+import com.subscriptionmanager.analytics.AnalyticsPeriod;
+import com.subscriptionmanager.analytics.dto.AnalyticsByCategoryResponse;
+import com.subscriptionmanager.analytics.dto.AnalyticsForecastResponse;
 import com.subscriptionmanager.analytics.dto.AnalyticsSummaryResponse;
 import com.subscriptionmanager.analytics.service.AnalyticsService;
 import com.subscriptionmanager.security.CurrentUserService;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/v1/analytics")
@@ -24,9 +24,20 @@ public class AnalyticsController {
     }
 
     @GetMapping("/summary")
-    public AnalyticsSummaryResponse summary(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-                                            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+    public AnalyticsSummaryResponse summary(@RequestParam String period) {
         Long userId = currentUserService.requireCurrentUserId();
-        return analyticsService.summary(userId, from, to);
+        return analyticsService.summary(userId, AnalyticsPeriod.from(period));
+    }
+
+    @GetMapping("/by-category")
+    public AnalyticsByCategoryResponse byCategory(@RequestParam String period) {
+        Long userId = currentUserService.requireCurrentUserId();
+        return analyticsService.byCategory(userId, AnalyticsPeriod.from(period));
+    }
+
+    @GetMapping("/forecast")
+    public AnalyticsForecastResponse forecast() {
+        Long userId = currentUserService.requireCurrentUserId();
+        return analyticsService.forecast(userId);
     }
 }

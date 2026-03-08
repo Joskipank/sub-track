@@ -10,6 +10,7 @@ import java.util.Optional;
 
 public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
     List<Subscription> findByUserIdOrderByNextBillingDateAsc(Long userId);
+    List<Subscription> findByUserIdAndStatus(Long userId, SubscriptionStatus status);
     List<Subscription> findByUserIdAndStatusAndNextBillingDateBetweenOrderByNextBillingDateAsc(
             Long userId,
             SubscriptionStatus status,
