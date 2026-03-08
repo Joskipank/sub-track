@@ -68,7 +68,7 @@ public class ImportServiceImpl implements ImportService {
         }
         validateProvider(request.provider());
         if (request.messages() == null || request.messages().isEmpty()) {
-            throw new ApiException("messages must not be empty");
+            throw new ApiException("messages must contain at least one message");
         }
 
         User user = userRepository.findById(userId)

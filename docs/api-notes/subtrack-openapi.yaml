@@ -254,6 +254,57 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ImportStartRequest'
+            examples:
+              success:
+                summary: Fully successful import
+                value:
+                  provider: GMAIL
+                  messages:
+                    - externalId: gmail-msg-success-001
+                      from: billing@netflix.com
+                      subject: Netflix renewal notice
+                      body: Your Netflix renewal is scheduled for 2026-03-20. Amount: 9.99 USD
+                      receivedAt: 2026-03-08T10:00:00Z
+                    - externalId: gmail-msg-success-002
+                      from: billing@netflix.com
+                      subject: Netflix renewal notice
+                      body: Your Netflix renewal is scheduled for 2026-04-20. Amount: 9.99 USD
+                      receivedAt: 2026-03-08T10:05:00Z
+              partial:
+                summary: Partial import with parser errors
+                value:
+                  provider: GMAIL
+                  messages:
+                    - externalId: gmail-msg-partial-001
+                      from: billing@netflix.com
+                      subject: Netflix renewal notice
+                      body: Your Netflix renewal is scheduled for 2026-03-22. Amount: 9.99 USD
+                      receivedAt: 2026-03-08T11:00:00Z
+                    - externalId: gmail-msg-partial-002
+                      from: billing@netflix.com
+                      subject: Netflix renewal notice
+                      body: Amount: 9.99 USD
+                      receivedAt: 2026-03-08T11:01:00Z
+                    - externalId: gmail-msg-partial-003
+                      from: no-reply@example.com
+                      subject: Monthly statement
+                      body: Payment details enclosed
+                      receivedAt: 2026-03-08T11:02:00Z
+              fail:
+                summary: Full failure (all messages invalid for parser)
+                value:
+                  provider: GMAIL
+                  messages:
+                    - externalId: gmail-msg-fail-001
+                      from: no-reply@example.com
+                      subject: Your receipt
+                      body: Amount: 9.99 USD
+                      receivedAt: 2026-03-08T12:00:00Z
+                    - externalId: gmail-msg-fail-002
+                      from: billing@netflix.com
+                      subject: Netflix notice
+                      body: Renewal amount 9.99 USD
+                      receivedAt: 2026-03-08T12:01:00Z
       responses:
         '200':
           description: Import finished (sync MVP)
@@ -263,6 +314,24 @@ paths:
                 $ref: '#/components/schemas/ImportResultResponse'
         '400':
           description: Invalid provider or broken request payload
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ApiErrorResponse'
+                  - $ref: '#/components/schemas/ValidationErrorResponse'
+              examples:
+                unsupportedProvider:
+                  summary: Provider is not supported in MVP
+                  value:
+                    message: only GMAIL provider is supported in MVP
+                validationError:
+                  summary: DTO validation error
+                  value:
+                    message: Validation failed
+                    errors:
+                      messages[0].externalId: externalId may contain only letters, digits, dot, underscore, colon and hyphen
+                      messages[0].from: from must be a valid email address
   /api/v1/imports:
     get:
       tags: [imports]
@@ -309,6 +378,20 @@ components:
         type: integer
         format: int64
   schemas:
+    ApiErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+    ValidationErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: string
     RegisterRequest:
       type: object
       required: [email, password]
@@ -553,31 +636,31 @@ components:
         provider:
           type: string
           enum: [GMAIL]
+          description: Only GMAIL is supported in MVP import flow.
         messages:
           type: array
           minItems: 1
+          maxItems: 100
           items:
             $ref: '#/components/schemas/MailMessageRequest'
-      example:
-        provider: GMAIL
-        messages:
-          - externalId: gmail-msg-001
-            from: billing@netflix.com
-            subject: Netflix renewal notice
-            body: Your Netflix renewal is scheduled for 2026-03-20. Amount: 9.99 USD
-            receivedAt: 2026-03-08T10:00:00Z
     MailMessageRequest:
       type: object
       required: [externalId, from, subject, body, receivedAt]
       properties:
         externalId:
           type: string
+          maxLength: 255
+          pattern: '^[A-Za-z0-9._:-]{1,255}$'
         from:
           type: string
+          format: email
+          maxLength: 255
         subject:
           type: string
+          maxLength: 500
         body:
           type: string
+          maxLength: 10000
         receivedAt:
           type: string
           format: date-time

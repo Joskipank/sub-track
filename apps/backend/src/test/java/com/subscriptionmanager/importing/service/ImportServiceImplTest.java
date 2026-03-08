@@ -196,6 +196,52 @@ class ImportServiceImplTest {
         assertThrows(ApiException.class, () -> importService.start(1L, request));
     }
 
+    @Test
+    void startRepeatedImportWithSamePayloadIsIdempotentByExternalId() {
+        MailMessageRequest message = message("ext-replay");
+        ImportStartRequest request = new ImportStartRequest(ImportProvider.GMAIL, List.of(message));
+
+        when(importItemRepository.existsByJobUserIdAndExternalId(1L, "ext-replay"))
+                .thenReturn(false, true);
+        when(gmailNetflixParser.parse(message)).thenReturn(
+                GmailNetflixParser.ParseResult.success(
+                        new GmailNetflixParser.ParsedSubscription(
+                                "Netflix",
+                                BigDecimal.valueOf(9.99),
+                                "USD",
+                                BillingPeriod.MONTHLY,
+                                LocalDate.of(2026, 3, 20),
+                                "Entertainment"
+                        )
+                )
+        );
+        when(subscriptionRepository.existsByUserIdAndServiceNameIgnoreCaseAndAmountAndCurrencyAndBillingPeriodAndNextBillingDateAndStatus(
+                anyLong(), anyString(), any(), anyString(), any(), any(), any()
+        )).thenReturn(false);
+
+        ImportResultResponse first = importService.start(1L, request);
+        ImportResultResponse second = importService.start(1L, request);
+
+        assertEquals(1, first.created());
+        assertEquals(0, first.skipped());
+        assertEquals(0, first.errors());
+        assertEquals("COMPLETED", first.status());
+
+        assertEquals(0, second.created());
+        assertEquals(1, second.skipped());
+        assertEquals(0, second.errors());
+        assertEquals("COMPLETED", second.status());
+    }
+
+    @Test
+    void startThrowsWhenMessagesListIsEmpty() {
+        ImportStartRequest request = new ImportStartRequest(ImportProvider.GMAIL, List.of());
+
+        ApiException exception = assertThrows(ApiException.class, () -> importService.start(1L, request));
+
+        assertEquals("messages must contain at least one message", exception.getMessage());
+    }
+
     private MailMessageRequest message(String externalId) {
         return new MailMessageRequest(
                 externalId,
