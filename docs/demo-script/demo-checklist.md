@@ -1,5 +1,10 @@
-﻿# Demo Checklist
+# Demo Checklist
 
-Prepare seeded data.
+Prepare test user and JWT token.
 Run backend, web and mobile.
-Walk through core MVP scenarios.
+Run import smoke script: `docs/demo-script/import-smoke.md`.
+Verify all import outcomes:
+- `COMPLETED` (success payload)
+- `COMPLETED_WITH_ERRORS` (partial payload)
+- `FAILED` (fail payload)
+- repeated success payload is skipped (idempotent replay)
