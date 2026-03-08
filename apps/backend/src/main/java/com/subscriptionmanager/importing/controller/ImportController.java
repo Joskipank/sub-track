@@ -1,8 +1,10 @@
 package com.subscriptionmanager.importing.controller;
 
-import com.subscriptionmanager.importing.dto.ImportJobResponse;
+import com.subscriptionmanager.importing.dto.ImportHistoryItemResponse;
+import com.subscriptionmanager.importing.dto.ImportResultResponse;
 import com.subscriptionmanager.importing.dto.ImportStartRequest;
 import com.subscriptionmanager.importing.service.ImportService;
+import jakarta.validation.Valid;
 import com.subscriptionmanager.security.CurrentUserService;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,14 +23,20 @@ public class ImportController {
     }
 
     @PostMapping("/start")
-    public ImportJobResponse start(@RequestBody ImportStartRequest request) {
+    public ImportResultResponse start(@Valid @RequestBody ImportStartRequest request) {
         Long userId = currentUserService.requireCurrentUserId();
-        return importService.start(userId, request.provider());
+        return importService.start(userId, request);
     }
 
     @GetMapping
-    public List<ImportJobResponse> history() {
+    public List<ImportHistoryItemResponse> history() {
         Long userId = currentUserService.requireCurrentUserId();
         return importService.history(userId);
+    }
+
+    @GetMapping("/{id}")
+    public ImportResultResponse details(@PathVariable Long id) {
+        Long userId = currentUserService.requireCurrentUserId();
+        return importService.getById(userId, id);
     }
 }
