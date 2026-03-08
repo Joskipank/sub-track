@@ -3,6 +3,7 @@ package com.subscriptionmanager.subscription.controller;
 import com.subscriptionmanager.security.CurrentUserService;
 import com.subscriptionmanager.subscription.dto.SubscriptionRequest;
 import com.subscriptionmanager.subscription.dto.SubscriptionResponse;
+import com.subscriptionmanager.subscription.dto.UpcomingSubscriptionResponse;
 import com.subscriptionmanager.subscription.service.SubscriptionService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +26,12 @@ public class SubscriptionController {
     public List<SubscriptionResponse> list() {
         Long userId = currentUserService.requireCurrentUserId();
         return subscriptionService.list(userId);
+    }
+
+    @GetMapping("/upcoming")
+    public List<UpcomingSubscriptionResponse> upcoming(@RequestParam(defaultValue = "7") int days) {
+        Long userId = currentUserService.requireCurrentUserId();
+        return subscriptionService.upcoming(userId, days);
     }
 
     @GetMapping("/{id}")

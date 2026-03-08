@@ -4,6 +4,7 @@ import com.subscriptionmanager.notification.dto.NotificationResponse;
 import com.subscriptionmanager.notification.service.NotificationService;
 import com.subscriptionmanager.security.CurrentUserService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -22,8 +23,8 @@ public class NotificationController {
     }
 
     @GetMapping
-    public List<NotificationResponse> list() {
+    public List<NotificationResponse> list(@RequestParam(defaultValue = "7") int days) {
         Long userId = currentUserService.requireCurrentUserId();
-        return notificationService.list(userId);
+        return notificationService.list(userId, days);
     }
 }

@@ -1,5 +1,663 @@
-﻿openapi: 3.0.3
+openapi: 3.0.3
 info:
   title: SubTrack API
   version: 0.1.0
-paths: {}
+  description: MVP backend contract for SubTrack demo.
+servers:
+  - url: http://localhost:8080
+security:
+  - bearerAuth: []
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+  /auth/login:
+    post:
+      tags: [auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+  /api/v1/users/me:
+    get:
+      tags: [users]
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+  /api/v1/dashboard:
+    get:
+      tags: [dashboard]
+      parameters:
+        - in: query
+          name: period
+          required: false
+          schema:
+            type: string
+            enum: [month, year]
+            default: month
+        - in: query
+          name: days
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+            default: 7
+      responses:
+        '200':
+          description: Aggregated dashboard payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '400':
+          description: Invalid period or days
+  /api/v1/categories:
+    get:
+      tags: [categories]
+      responses:
+        '200':
+          description: Categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategoryResponse'
+  /api/v1/subscriptions:
+    get:
+      tags: [subscriptions]
+      responses:
+        '200':
+          description: Subscriptions list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SubscriptionResponse'
+    post:
+      tags: [subscriptions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionRequest'
+      responses:
+        '200':
+          description: Created subscription
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+  /api/v1/subscriptions/upcoming:
+    get:
+      tags: [subscriptions]
+      parameters:
+        - in: query
+          name: days
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+            default: 7
+      responses:
+        '200':
+          description: Active subscriptions with upcoming charges
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UpcomingSubscriptionResponse'
+  /api/v1/subscriptions/{id}:
+    get:
+      tags: [subscriptions]
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+      responses:
+        '200':
+          description: Subscription by id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+    put:
+      tags: [subscriptions]
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionRequest'
+      responses:
+        '200':
+          description: Updated subscription
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+    delete:
+      tags: [subscriptions]
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+      responses:
+        '200':
+          description: Deleted
+  /api/v1/notifications:
+    get:
+      tags: [notifications]
+      parameters:
+        - in: query
+          name: days
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+            default: 7
+      responses:
+        '200':
+          description: Notifications for window today..today+days
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotificationResponse'
+  /api/v1/analytics/summary:
+    get:
+      tags: [analytics]
+      parameters:
+        - in: query
+          name: period
+          required: true
+          schema:
+            type: string
+            enum: [month, year]
+      responses:
+        '200':
+          description: Analytics summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsSummaryResponse'
+        '400':
+          description: Invalid period
+  /api/v1/analytics/by-category:
+    get:
+      tags: [analytics]
+      parameters:
+        - in: query
+          name: period
+          required: true
+          schema:
+            type: string
+            enum: [month, year]
+      responses:
+        '200':
+          description: Analytics by category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsByCategoryResponse'
+        '400':
+          description: Invalid period
+  /api/v1/analytics/forecast:
+    get:
+      tags: [analytics]
+      responses:
+        '200':
+          description: Monthly and yearly forecast
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsForecastResponse'
+  /api/v1/imports/start:
+    post:
+      tags: [imports]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportStartRequest'
+      responses:
+        '200':
+          description: Import finished (sync MVP)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResultResponse'
+        '400':
+          description: Invalid provider or broken request payload
+  /api/v1/imports:
+    get:
+      tags: [imports]
+      responses:
+        '200':
+          description: Import history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ImportHistoryItemResponse'
+  /api/v1/imports/{id}:
+    get:
+      tags: [imports]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Import job details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResultResponse'
+        '400':
+          description: Import job not found
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    SubscriptionId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: integer
+        format: int64
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+          maxLength: 100
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserResponse'
+    UserProfileResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        timezone:
+          type: string
+          nullable: true
+    DashboardResponse:
+      type: object
+      properties:
+        summary:
+          $ref: '#/components/schemas/AnalyticsSummaryResponse'
+        forecast:
+          $ref: '#/components/schemas/AnalyticsForecastResponse'
+        byCategory:
+          $ref: '#/components/schemas/AnalyticsByCategoryResponse'
+        upcoming:
+          type: array
+          items:
+            $ref: '#/components/schemas/UpcomingSubscriptionResponse'
+        notifications:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationResponse'
+    CategoryResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+    SubscriptionRequest:
+      type: object
+      required: [serviceName, amount, currency, billingPeriod, nextBillingDate]
+      properties:
+        serviceName:
+          type: string
+          maxLength: 255
+        categoryId:
+          type: integer
+          format: int64
+          nullable: true
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        billingPeriod:
+          type: string
+          enum: [WEEKLY, MONTHLY, QUARTERLY, YEARLY]
+        nextBillingDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [ACTIVE, PAUSED, CANCELED]
+          nullable: true
+    SubscriptionResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        serviceName:
+          type: string
+        category:
+          type: string
+          nullable: true
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+        billingPeriod:
+          type: string
+          enum: [WEEKLY, MONTHLY, QUARTERLY, YEARLY]
+        nextBillingDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [ACTIVE, PAUSED, CANCELED]
+    UpcomingSubscriptionResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        serviceName:
+          type: string
+        category:
+          type: string
+          nullable: true
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+        billingPeriod:
+          type: string
+          enum: [WEEKLY, MONTHLY, QUARTERLY, YEARLY]
+        nextBillingDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [ACTIVE, PAUSED, CANCELED]
+        daysUntilBilling:
+          type: integer
+          format: int64
+    NotificationResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        type:
+          type: string
+        message:
+          type: string
+        scheduledAt:
+          type: string
+        status:
+          type: string
+    AnalyticsSummaryResponse:
+      type: object
+      properties:
+        period:
+          type: string
+          enum: [month, year]
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        totalAmount:
+          type: number
+          format: double
+        activeSubscriptions:
+          type: integer
+          format: int64
+        currency:
+          type: string
+          nullable: true
+    AnalyticsByCategoryResponse:
+      type: object
+      properties:
+        period:
+          type: string
+          enum: [month, year]
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        totalAmount:
+          type: number
+          format: double
+        currency:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalyticsCategoryItemResponse'
+    AnalyticsCategoryItemResponse:
+      type: object
+      properties:
+        category:
+          type: string
+        amount:
+          type: number
+          format: double
+        sharePercent:
+          type: number
+          format: double
+        subscriptionsCount:
+          type: integer
+          format: int32
+    AnalyticsForecastResponse:
+      type: object
+      properties:
+        monthForecast:
+          type: number
+          format: double
+        yearForecast:
+          type: number
+          format: double
+        currency:
+          type: string
+          nullable: true
+    ImportStartRequest:
+      type: object
+      required: [provider, messages]
+      properties:
+        provider:
+          type: string
+          enum: [GMAIL]
+        messages:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/MailMessageRequest'
+      example:
+        provider: GMAIL
+        messages:
+          - externalId: gmail-msg-001
+            from: billing@netflix.com
+            subject: Netflix renewal notice
+            body: Your Netflix renewal is scheduled for 2026-03-20. Amount: 9.99 USD
+            receivedAt: 2026-03-08T10:00:00Z
+    MailMessageRequest:
+      type: object
+      required: [externalId, from, subject, body, receivedAt]
+      properties:
+        externalId:
+          type: string
+        from:
+          type: string
+        subject:
+          type: string
+        body:
+          type: string
+        receivedAt:
+          type: string
+          format: date-time
+    ImportResultResponse:
+      type: object
+      properties:
+        jobId:
+          type: integer
+          format: int64
+        provider:
+          type: string
+        status:
+          type: string
+          enum: [IN_PROGRESS, COMPLETED, COMPLETED_WITH_ERRORS, FAILED]
+        processed:
+          type: integer
+          format: int32
+        created:
+          type: integer
+          format: int32
+        skipped:
+          type: integer
+          format: int32
+        errors:
+          type: integer
+          format: int32
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        errorItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportErrorItemResponse'
+      example:
+        jobId: 42
+        provider: GMAIL
+        status: COMPLETED_WITH_ERRORS
+        processed: 3
+        created: 1
+        skipped: 1
+        errors: 1
+        startedAt: 2026-03-08T10:00:00Z
+        finishedAt: 2026-03-08T10:00:01Z
+        errorItems:
+          - externalId: gmail-msg-003
+            reason: parser could not extract next billing date (expected YYYY-MM-DD)
+    ImportErrorItemResponse:
+      type: object
+      properties:
+        externalId:
+          type: string
+        reason:
+          type: string
+    ImportHistoryItemResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        provider:
+          type: string
+        status:
+          type: string
+          enum: [IN_PROGRESS, COMPLETED, COMPLETED_WITH_ERRORS, FAILED]
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+      example:
+        id: 42
+        provider: GMAIL
+        status: COMPLETED_WITH_ERRORS
+        startedAt: 2026-03-08T10:00:00Z
+        finishedAt: 2026-03-08T10:00:01Z

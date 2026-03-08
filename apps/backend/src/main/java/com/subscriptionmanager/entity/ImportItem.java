@@ -23,4 +23,51 @@ public class ImportItem {
 
     @Column(nullable = false)
     private OffsetDateTime createdAt;
+
+    @PrePersist
+    void prePersist() {
+        if (createdAt == null) {
+            createdAt = OffsetDateTime.now();
+        }
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public ImportJob getJob() {
+        return job;
+    }
+
+    public void setJob(ImportJob job) {
+        this.job = job;
+    }
+
+    public String getExternalId() {
+        return externalId;
+    }
+
+    public void setExternalId(String externalId) {
+        this.externalId = externalId;
+    }
+
+    public String getRawPayload() {
+        return rawPayload;
+    }
+
+    public void setRawPayload(String rawPayload) {
+        this.rawPayload = rawPayload;
+    }
+
+    public OffsetDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(OffsetDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
 }

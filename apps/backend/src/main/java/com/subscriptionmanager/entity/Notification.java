@@ -34,4 +34,68 @@ public class Notification {
 
     @Column(nullable = false)
     private String status;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
+
+    public Subscription getSubscription() {
+        return subscription;
+    }
+
+    public void setSubscription(Subscription subscription) {
+        this.subscription = subscription;
+    }
+
+    public NotificationType getType() {
+        return type;
+    }
+
+    public void setType(NotificationType type) {
+        this.type = type;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public void setMessage(String message) {
+        this.message = message;
+    }
+
+    public OffsetDateTime getScheduledAt() {
+        return scheduledAt;
+    }
+
+    public void setScheduledAt(OffsetDateTime scheduledAt) {
+        this.scheduledAt = scheduledAt;
+    }
+
+    public OffsetDateTime getSentAt() {
+        return sentAt;
+    }
+
+    public void setSentAt(OffsetDateTime sentAt) {
+        this.sentAt = sentAt;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
 }
