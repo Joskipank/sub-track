@@ -11,14 +11,19 @@ import com.subscriptionmanager.repository.SubscriptionRepository;
 import com.subscriptionmanager.repository.UserRepository;
 import com.subscriptionmanager.subscription.dto.SubscriptionRequest;
 import com.subscriptionmanager.subscription.dto.SubscriptionResponse;
+import com.subscriptionmanager.subscription.dto.UpcomingSubscriptionResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 import java.util.List;
 
 @Service
 public class SubscriptionServiceImpl implements SubscriptionService {
+    private static final int MIN_DAYS = 1;
+    private static final int MAX_DAYS = 365;
 
     private final SubscriptionRepository subscriptionRepository;
     private final CategoryRepository categoryRepository;
@@ -40,6 +45,25 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         return subscriptionRepository.findByUserIdOrderByNextBillingDateAsc(userId)
                 .stream()
                 .map(this::toResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UpcomingSubscriptionResponse> upcoming(Long userId, int days) {
+        validateDays(days);
+
+        LocalDate today = LocalDate.now();
+        LocalDate endDate = today.plusDays(days);
+
+        return subscriptionRepository.findByUserIdAndStatusAndNextBillingDateBetweenOrderByNextBillingDateAsc(
+                        userId,
+                        SubscriptionStatus.ACTIVE,
+                        today,
+                        endDate
+                )
+                .stream()
+                .map(subscription -> toUpcomingResponse(subscription, today))
                 .toList();
     }
 
@@ -115,5 +139,28 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 subscription.getNextBillingDate(),
                 subscription.getStatus()
         );
+    }
+
+    private UpcomingSubscriptionResponse toUpcomingResponse(Subscription subscription, LocalDate today) {
+        String categoryName = subscription.getCategory() == null ? null : subscription.getCategory().getName();
+        long daysUntilBilling = ChronoUnit.DAYS.between(today, subscription.getNextBillingDate());
+
+        return new UpcomingSubscriptionResponse(
+                subscription.getId(),
+                subscription.getServiceName(),
+                categoryName,
+                subscription.getAmount(),
+                subscription.getCurrency(),
+                subscription.getBillingPeriod(),
+                subscription.getNextBillingDate(),
+                subscription.getStatus(),
+                daysUntilBilling
+        );
+    }
+
+    private void validateDays(int days) {
+        if (days < MIN_DAYS || days > MAX_DAYS) {
+            throw new ApiException("days must be between 1 and 365");
+        }
     }
 }
