@@ -52,6 +52,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserProfileResponse'
+  /api/v1/dashboard:
+    get:
+      tags: [dashboard]
+      parameters:
+        - in: query
+          name: period
+          required: false
+          schema:
+            type: string
+            enum: [month, year]
+            default: month
+        - in: query
+          name: days
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+            default: 7
+      responses:
+        '200':
+          description: Aggregated dashboard payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '400':
+          description: Invalid period or days
   /api/v1/categories:
     get:
       tags: [categories]
@@ -329,6 +357,23 @@ components:
         timezone:
           type: string
           nullable: true
+    DashboardResponse:
+      type: object
+      properties:
+        summary:
+          $ref: '#/components/schemas/AnalyticsSummaryResponse'
+        forecast:
+          $ref: '#/components/schemas/AnalyticsForecastResponse'
+        byCategory:
+          $ref: '#/components/schemas/AnalyticsByCategoryResponse'
+        upcoming:
+          type: array
+          items:
+            $ref: '#/components/schemas/UpcomingSubscriptionResponse'
+        notifications:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationResponse'
     CategoryResponse:
       type: object
       properties:
