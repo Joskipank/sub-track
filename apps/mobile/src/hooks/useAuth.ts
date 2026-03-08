@@ -1,3 +1,1 @@
-﻿export const useAuth = () => {
-  return {};
-};
+export { useAuth } from "../context/AuthContext";
