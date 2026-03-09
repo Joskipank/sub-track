@@ -16,8 +16,10 @@ import com.subscriptionmanager.importing.dto.ImportHistoryItemResponse;
 import com.subscriptionmanager.importing.dto.ImportResultResponse;
 import com.subscriptionmanager.importing.dto.ImportStartRequest;
 import com.subscriptionmanager.importing.dto.MailMessageRequest;
+import com.subscriptionmanager.importing.exception.ImportConsentRequiredException;
 import com.subscriptionmanager.importing.parser.GmailNetflixParser;
 import com.subscriptionmanager.repository.CategoryRepository;
+import com.subscriptionmanager.repository.ConsentRepository;
 import com.subscriptionmanager.repository.ImportItemRepository;
 import com.subscriptionmanager.repository.ImportJobRepository;
 import com.subscriptionmanager.repository.SubscriptionRepository;
@@ -41,6 +43,7 @@ public class ImportServiceImpl implements ImportService {
     private final ImportItemRepository importItemRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final CategoryRepository categoryRepository;
+    private final ConsentRepository consentRepository;
     private final UserRepository userRepository;
     private final GmailNetflixParser gmailNetflixParser;
 
@@ -49,6 +52,7 @@ public class ImportServiceImpl implements ImportService {
             ImportItemRepository importItemRepository,
             SubscriptionRepository subscriptionRepository,
             CategoryRepository categoryRepository,
+            ConsentRepository consentRepository,
             UserRepository userRepository,
             GmailNetflixParser gmailNetflixParser
     ) {
@@ -56,6 +60,7 @@ public class ImportServiceImpl implements ImportService {
         this.importItemRepository = importItemRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.categoryRepository = categoryRepository;
+        this.consentRepository = consentRepository;
         this.userRepository = userRepository;
         this.gmailNetflixParser = gmailNetflixParser;
     }
@@ -67,6 +72,7 @@ public class ImportServiceImpl implements ImportService {
             throw new ApiException("request is required");
         }
         validateProvider(request.provider());
+        ensureActiveConsent(userId, request.provider());
         if (request.messages() == null || request.messages().isEmpty()) {
             throw new ApiException("messages must contain at least one message");
         }
@@ -228,6 +234,13 @@ public class ImportServiceImpl implements ImportService {
 
         if (provider != ImportProvider.GMAIL) {
             throw new ApiException("only GMAIL provider is supported in MVP");
+        }
+    }
+
+    private void ensureActiveConsent(Long userId, ImportProvider provider) {
+        boolean hasActiveConsent = consentRepository.existsByUserIdAndProviderAndRevokedAtIsNull(userId, provider);
+        if (!hasActiveConsent) {
+            throw new ImportConsentRequiredException(provider);
         }
     }
 

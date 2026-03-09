@@ -27,4 +27,52 @@ public class Consent {
     private OffsetDateTime grantedAt;
 
     private OffsetDateTime revokedAt;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
+
+    public ImportProvider getProvider() {
+        return provider;
+    }
+
+    public void setProvider(ImportProvider provider) {
+        this.provider = provider;
+    }
+
+    public String getScope() {
+        return scope;
+    }
+
+    public void setScope(String scope) {
+        this.scope = scope;
+    }
+
+    public OffsetDateTime getGrantedAt() {
+        return grantedAt;
+    }
+
+    public void setGrantedAt(OffsetDateTime grantedAt) {
+        this.grantedAt = grantedAt;
+    }
+
+    public OffsetDateTime getRevokedAt() {
+        return revokedAt;
+    }
+
+    public void setRevokedAt(OffsetDateTime revokedAt) {
+        this.revokedAt = revokedAt;
+    }
 }

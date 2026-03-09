@@ -1,5 +1,6 @@
 package com.subscriptionmanager.exception;
 
+import com.subscriptionmanager.importing.exception.ImportConsentRequiredException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.AuthenticationException;
@@ -13,6 +14,15 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ImportConsentRequiredException.class)
+    public ResponseEntity<Map<String, Object>> handleImportConsentRequired(ImportConsentRequiredException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("code", ImportConsentRequiredException.ERROR_CODE);
+        body.put("message", ex.getMessage());
+        body.put("provider", ex.getProvider().name());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
 
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<Map<String, String>> handleApiException(ApiException ex) {

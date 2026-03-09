@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/forecast")
+@Deprecated(since = "0.1.0", forRemoval = false)
 public class ForecastController {
 
     private final ForecastService forecastService;
@@ -20,7 +21,11 @@ public class ForecastController {
         this.currentUserService = currentUserService;
     }
 
+    /**
+     * @deprecated Use /api/v1/analytics/forecast. This endpoint is kept as a compatibility alias.
+     */
     @GetMapping
+    @Deprecated(since = "0.1.0", forRemoval = false)
     public ForecastResponse forecast(@RequestParam(defaultValue = "12") int months) {
         Long userId = currentUserService.requireCurrentUserId();
         return forecastService.forecast(userId, months);
