@@ -8,7 +8,22 @@ param(
 $ErrorActionPreference = "Stop"
 
 if ([string]::IsNullOrWhiteSpace($BaseUrl)) {
-    Write-Error "BaseUrl must not be empty."
+    [Console]::Error.WriteLine("BaseUrl must not be empty.")
+    exit 2
+}
+
+if ([string]::IsNullOrWhiteSpace($ProbePath)) {
+    [Console]::Error.WriteLine("ProbePath must not be empty.")
+    exit 2
+}
+
+if ($TimeoutSec -le 0) {
+    [Console]::Error.WriteLine("TimeoutSec must be > 0.")
+    exit 2
+}
+
+if ($IntervalMs -le 0) {
+    [Console]::Error.WriteLine("IntervalMs must be > 0.")
     exit 2
 }
 
@@ -34,5 +49,5 @@ while ((Get-Date) -lt $deadline) {
     Start-Sleep -Milliseconds $IntervalMs
 }
 
-Write-Error "Health check failed for $uri within ${TimeoutSec}s. Last error: $lastError"
+[Console]::Error.WriteLine("Health check failed for $uri within ${TimeoutSec}s. Last error: $lastError")
 exit 1
