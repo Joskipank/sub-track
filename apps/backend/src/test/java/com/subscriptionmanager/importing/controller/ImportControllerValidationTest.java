@@ -2,6 +2,7 @@ package com.subscriptionmanager.importing.controller;
 
 import com.subscriptionmanager.exception.ApiException;
 import com.subscriptionmanager.exception.GlobalExceptionHandler;
+import com.subscriptionmanager.importing.exception.ImportConsentRequiredException;
 import com.subscriptionmanager.importing.service.ImportService;
 import com.subscriptionmanager.security.CurrentUserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -110,5 +111,35 @@ class ImportControllerValidationTest {
                         .content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("only GMAIL provider is supported in MVP"));
+    }
+
+    @Test
+    void startReturnsForbiddenWhenConsentMissing() throws Exception {
+        String body = """
+                {
+                  "provider": "GMAIL",
+                  "messages": [
+                    {
+                      "externalId": "gmail-msg-no-consent-001",
+                      "from": "billing@netflix.com",
+                      "subject": "Netflix renewal notice",
+                      "body": "Your Netflix renewal is scheduled for 2026-03-20. Amount: 9.99 USD",
+                      "receivedAt": "2026-03-08T10:00:00Z"
+                    }
+                  ]
+                }
+                """;
+
+        when(currentUserService.requireCurrentUserId()).thenReturn(1L);
+        when(importService.start(eq(1L), any()))
+                .thenThrow(new ImportConsentRequiredException(com.subscriptionmanager.common.enums.ImportProvider.GMAIL));
+
+        mockMvc.perform(post("/api/v1/imports/start")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("IMPORT_CONSENT_REQUIRED"))
+                .andExpect(jsonPath("$.provider").value("GMAIL"))
+                .andExpect(jsonPath("$.message").value("active consent is required before import for provider GMAIL"));
     }
 }

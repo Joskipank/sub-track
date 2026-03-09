@@ -2,18 +2,28 @@
 
 ## Preconditions
 - Backend is running on `http://localhost:8080`
-- Test user exists or can be created via `/auth/register`
+- Test user exists or can be created via `/api/v1/auth/register`
 
 ## 1) Login and get JWT
 ```bash
-curl -X POST "http://localhost:8080/auth/login" \
+curl -X POST "http://localhost:8080/api/v1/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"email":"demo@subtrack.app","password":"Passw0rd!"}'
 ```
 
 Copy `token` from response.
 
-## 2) Run success payload
+## 2) Grant consent for import provider
+```bash
+curl -X POST "http://localhost:8080/api/v1/consents/imports/GMAIL/grant" \
+  -H "Authorization: Bearer <TOKEN>"
+```
+
+Optional negative check (import without consent):
+- call `POST /api/v1/consents/imports/GMAIL/revoke`
+- call `POST /api/v1/imports/start` and expect `403` with code `IMPORT_CONSENT_REQUIRED`.
+
+## 3) Run success payload
 ```bash
 curl -X POST "http://localhost:8080/api/v1/imports/start" \
   -H "Authorization: Bearer <TOKEN>" \
@@ -37,7 +47,7 @@ Expect:
 - `created > 0`
 - `errors = 0`
 
-## 3) Run partial payload
+## 4) Run partial payload
 ```bash
 curl -X POST "http://localhost:8080/api/v1/imports/start" \
   -H "Authorization: Bearer <TOKEN>" \
@@ -68,7 +78,7 @@ Expect:
 - `created > 0`
 - `errors > 0`
 
-## 4) Run fail payload
+## 5) Run fail payload
 ```bash
 curl -X POST "http://localhost:8080/api/v1/imports/start" \
   -H "Authorization: Bearer <TOKEN>" \
@@ -92,14 +102,14 @@ Expect:
 - `created = 0`
 - `errors = processed`
 
-## 5) Idempotency check (repeat same success payload)
-Send the exact same request from step 2 again.
+## 6) Idempotency check (repeat same success payload)
+Send the exact same request from step 3 again.
 
 Expect:
 - second run has `skipped > 0`
 - no duplicate subscription creation for same message `externalId`
 
-## 6) Verify history/details
+## 7) Verify history/details
 ```bash
 curl -X GET "http://localhost:8080/api/v1/imports" \
   -H "Authorization: Bearer <TOKEN>"

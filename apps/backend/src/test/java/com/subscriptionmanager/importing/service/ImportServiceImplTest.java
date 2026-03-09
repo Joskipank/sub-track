@@ -8,8 +8,10 @@ import com.subscriptionmanager.importing.dto.ImportHistoryItemResponse;
 import com.subscriptionmanager.importing.dto.ImportResultResponse;
 import com.subscriptionmanager.importing.dto.ImportStartRequest;
 import com.subscriptionmanager.importing.dto.MailMessageRequest;
+import com.subscriptionmanager.importing.exception.ImportConsentRequiredException;
 import com.subscriptionmanager.importing.parser.GmailNetflixParser;
 import com.subscriptionmanager.repository.CategoryRepository;
+import com.subscriptionmanager.repository.ConsentRepository;
 import com.subscriptionmanager.repository.ImportItemRepository;
 import com.subscriptionmanager.repository.ImportJobRepository;
 import com.subscriptionmanager.repository.SubscriptionRepository;
@@ -47,6 +49,8 @@ class ImportServiceImplTest {
     @Mock
     private CategoryRepository categoryRepository;
     @Mock
+    private ConsentRepository consentRepository;
+    @Mock
     private UserRepository userRepository;
     @Mock
     private GmailNetflixParser gmailNetflixParser;
@@ -60,6 +64,7 @@ class ImportServiceImplTest {
                 importItemRepository,
                 subscriptionRepository,
                 categoryRepository,
+                consentRepository,
                 userRepository,
                 gmailNetflixParser
         );
@@ -68,6 +73,8 @@ class ImportServiceImplTest {
         user.setId(1L);
         user.setEmail("test@example.com");
         lenient().when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        lenient().when(consentRepository.existsByUserIdAndProviderAndRevokedAtIsNull(1L, ImportProvider.GMAIL))
+                .thenReturn(true);
 
         lenient().when(importJobRepository.save(any(ImportJob.class))).thenAnswer(invocation -> {
             ImportJob job = invocation.getArgument(0);
@@ -240,6 +247,58 @@ class ImportServiceImplTest {
         ApiException exception = assertThrows(ApiException.class, () -> importService.start(1L, request));
 
         assertEquals("messages must contain at least one message", exception.getMessage());
+    }
+
+    @Test
+    void startThrowsWhenConsentIsMissing() {
+        MailMessageRequest message = message("ext-no-consent");
+        ImportStartRequest request = new ImportStartRequest(ImportProvider.GMAIL, List.of(message));
+
+        when(consentRepository.existsByUserIdAndProviderAndRevokedAtIsNull(1L, ImportProvider.GMAIL))
+                .thenReturn(false);
+
+        ImportConsentRequiredException exception = assertThrows(
+                ImportConsentRequiredException.class,
+                () -> importService.start(1L, request)
+        );
+
+        assertEquals("active consent is required before import for provider GMAIL", exception.getMessage());
+    }
+
+    @Test
+    void startReturnsCompletedWithErrorsForPartialScenario() {
+        MailMessageRequest successMessage = message("ext-partial-success");
+        MailMessageRequest errorMessage = message("ext-partial-error");
+        ImportStartRequest request = new ImportStartRequest(ImportProvider.GMAIL, List.of(successMessage, errorMessage));
+
+        when(importItemRepository.existsByJobUserIdAndExternalId(1L, "ext-partial-success")).thenReturn(false);
+        when(importItemRepository.existsByJobUserIdAndExternalId(1L, "ext-partial-error")).thenReturn(false);
+        when(gmailNetflixParser.parse(successMessage)).thenReturn(
+                GmailNetflixParser.ParseResult.success(
+                        new GmailNetflixParser.ParsedSubscription(
+                                "Netflix",
+                                BigDecimal.valueOf(9.99),
+                                "USD",
+                                BillingPeriod.MONTHLY,
+                                LocalDate.of(2026, 3, 20),
+                                "Entertainment"
+                        )
+                )
+        );
+        when(gmailNetflixParser.parse(errorMessage)).thenReturn(
+                GmailNetflixParser.ParseResult.error("parser could not extract next billing date (expected YYYY-MM-DD)")
+        );
+        when(subscriptionRepository.existsByUserIdAndServiceNameIgnoreCaseAndAmountAndCurrencyAndBillingPeriodAndNextBillingDateAndStatus(
+                anyLong(), anyString(), any(), anyString(), any(), any(), any()
+        )).thenReturn(false);
+
+        ImportResultResponse response = importService.start(1L, request);
+
+        assertEquals(2, response.processed());
+        assertEquals(1, response.created());
+        assertEquals(0, response.skipped());
+        assertEquals(1, response.errors());
+        assertEquals("COMPLETED_WITH_ERRORS", response.status());
     }
 
     private MailMessageRequest message(String externalId) {

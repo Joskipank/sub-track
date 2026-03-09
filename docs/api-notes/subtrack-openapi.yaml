@@ -266,9 +266,79 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ForecastResponse'
+  /api/v1/consents/imports/{provider}:
+    get:
+      tags: [consents]
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema:
+            type: string
+            enum: [GMAIL]
+      responses:
+        '200':
+          description: Current consent state for import provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportConsentStatusResponse'
+        '400':
+          description: Invalid or unsupported provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/v1/consents/imports/{provider}/grant:
+    post:
+      tags: [consents]
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema:
+            type: string
+            enum: [GMAIL]
+      responses:
+        '200':
+          description: Consent granted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportConsentStatusResponse'
+        '400':
+          description: Invalid or unsupported provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/v1/consents/imports/{provider}/revoke:
+    post:
+      tags: [consents]
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema:
+            type: string
+            enum: [GMAIL]
+      responses:
+        '200':
+          description: Consent revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportConsentStatusResponse'
+        '400':
+          description: Invalid or unsupported provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
   /api/v1/imports/start:
     post:
       tags: [imports]
+      description: Requires active consent for requested provider. Grant via /api/v1/consents/imports/{provider}/grant.
       requestBody:
         required: true
         content:
@@ -353,6 +423,19 @@ paths:
                     errors:
                       messages[0].externalId: externalId may contain only letters, digits, dot, underscore, colon and hyphen
                       messages[0].from: from must be a valid email address
+        '403':
+          description: Import consent is missing for provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportConsentErrorResponse'
+              examples:
+                consentRequired:
+                  summary: Import blocked without active consent
+                  value:
+                    code: IMPORT_CONSENT_REQUIRED
+                    message: active consent is required before import for provider GMAIL
+                    provider: GMAIL
   /api/v1/imports:
     get:
       tags: [imports]
@@ -659,6 +742,40 @@ components:
         yearlyForecast:
           type: number
           format: double
+    ImportConsentStatusResponse:
+      type: object
+      properties:
+        provider:
+          type: string
+          enum: [GMAIL]
+        status:
+          type: string
+          enum: [GRANTED, REVOKED, NOT_GRANTED]
+        scope:
+          type: string
+          example: MAIL_IMPORT_READ
+        grantedAt:
+          type: string
+          format: date-time
+          nullable: true
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        integrationStatus:
+          type: string
+          example: ACTIVE
+    ImportConsentErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          example: IMPORT_CONSENT_REQUIRED
+        message:
+          type: string
+        provider:
+          type: string
+          enum: [GMAIL]
     ImportStartRequest:
       type: object
       required: [provider, messages]
@@ -666,7 +783,7 @@ components:
         provider:
           type: string
           enum: [GMAIL]
-          description: Only GMAIL is supported in MVP import flow.
+          description: Only GMAIL is supported in MVP import flow and requires active consent.
         messages:
           type: array
           minItems: 1

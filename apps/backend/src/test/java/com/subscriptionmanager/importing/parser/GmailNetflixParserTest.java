@@ -48,4 +48,40 @@ class GmailNetflixParserTest {
         assertFalse(result.success());
         assertTrue(result.reason().contains("next billing date"));
     }
+
+    @Test
+    void parseSuccessForSpotifyTemplate() {
+        MailMessageRequest message = new MailMessageRequest(
+                "ext-3",
+                "billing@spotify.com",
+                "Spotify Premium renewal",
+                "Spotify charged 5.99 USD. Next billing date: 2026-04-01",
+                OffsetDateTime.parse("2026-03-08T10:00:00Z")
+        );
+
+        GmailNetflixParser.ParseResult result = parser.parse(message);
+
+        assertTrue(result.success());
+        assertEquals("Spotify", result.parsedSubscription().serviceName());
+        assertEquals(BigDecimal.valueOf(5.99).setScale(2), result.parsedSubscription().amount());
+        assertEquals(LocalDate.of(2026, 4, 1), result.parsedSubscription().nextBillingDate());
+    }
+
+    @Test
+    void parseSuccessForYoutubeTemplateWithDollarAmount() {
+        MailMessageRequest message = new MailMessageRequest(
+                "ext-4",
+                "no-reply@youtube.com",
+                "YouTube Premium charge",
+                "Your YouTube Premium renewal is on 2026-05-15. Charged $12.99",
+                OffsetDateTime.parse("2026-03-08T10:00:00Z")
+        );
+
+        GmailNetflixParser.ParseResult result = parser.parse(message);
+
+        assertTrue(result.success());
+        assertEquals("YouTube Premium", result.parsedSubscription().serviceName());
+        assertEquals(BigDecimal.valueOf(12.99).setScale(2), result.parsedSubscription().amount());
+        assertEquals(LocalDate.of(2026, 5, 15), result.parsedSubscription().nextBillingDate());
+    }
 }
