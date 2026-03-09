@@ -1,14 +1,22 @@
 package com.subscriptionmanager.forecast.service;
 
+import com.subscriptionmanager.analytics.dto.AnalyticsForecastResponse;
+import com.subscriptionmanager.analytics.service.AnalyticsService;
 import com.subscriptionmanager.forecast.dto.ForecastResponse;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-
 @Service
 public class ForecastServiceImpl implements ForecastService {
+
+    private final AnalyticsService analyticsService;
+
+    public ForecastServiceImpl(AnalyticsService analyticsService) {
+        this.analyticsService = analyticsService;
+    }
+
     @Override
     public ForecastResponse forecast(Long userId, int months) {
-        return new ForecastResponse(BigDecimal.ZERO, BigDecimal.ZERO);
+        AnalyticsForecastResponse analyticsForecast = analyticsService.forecast(userId);
+        return new ForecastResponse(analyticsForecast.monthForecast(), analyticsForecast.yearForecast());
     }
 }

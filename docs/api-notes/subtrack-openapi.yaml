@@ -245,6 +245,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnalyticsForecastResponse'
+  /api/v1/forecast:
+    get:
+      tags: [forecast]
+      deprecated: true
+      description: Deprecated compatibility alias. Uses the same calculation as /api/v1/analytics/forecast.
+      parameters:
+        - in: query
+          name: months
+          required: false
+          deprecated: true
+          schema:
+            type: integer
+            default: 12
+          description: Deprecated. Kept for backward compatibility and ignored by calculation logic.
+      responses:
+        '200':
+          description: Forecast (legacy shape)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastResponse'
   /api/v1/imports/start:
     post:
       tags: [imports]
@@ -629,6 +650,15 @@ components:
         currency:
           type: string
           nullable: true
+    ForecastResponse:
+      type: object
+      properties:
+        monthlyForecast:
+          type: number
+          format: double
+        yearlyForecast:
+          type: number
+          format: double
     ImportStartRequest:
       type: object
       required: [provider, messages]
