@@ -6,8 +6,11 @@ export type AuthStackParamList = {
 export type MainTabsParamList = {
   Dashboard: undefined;
   Subscriptions: undefined;
+  Upcoming: undefined;
+  Reminders: undefined;
   Analytics: undefined;
-  ImportCsv: undefined;
+  Import: undefined;
+  Settings: undefined;
 };
 
 export type RootStackParamList = {
