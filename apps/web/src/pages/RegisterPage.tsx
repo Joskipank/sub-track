@@ -1,8 +1,103 @@
-﻿import React from "react";
+import { useState, type FormEvent } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
 
 const RegisterPage = () => {
-  return <div>RegisterPage</div>;
+  const navigate = useNavigate();
+  const { register } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (password.length < 6) {
+      setError("Пароль должен содержать минимум 6 символов");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Пароли не совпадают");
+      return;
+    }
+
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      await register({ email, password });
+      navigate("/", { replace: true });
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Не удалось создать аккаунт");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="auth-page">
+      <div className="auth-page__header">
+        <p className="auth-page__eyebrow">Регистрация</p>
+        <h1 className="auth-page__title">Создать аккаунт</h1>
+        <p className="auth-page__subtitle">
+          Подготовьте рабочее пространство для отслеживания расходов и аналитики по подпискам.
+        </p>
+      </div>
+
+      <form className="auth-form" onSubmit={handleSubmit}>
+        <label className="auth-form__field">
+          <span>Email</span>
+          <input
+            className="input"
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            autoComplete="email"
+            required
+          />
+        </label>
+        <label className="auth-form__field">
+          <span>Пароль</span>
+          <input
+            className="input"
+            type="password"
+            placeholder="Минимум 6 символов"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="new-password"
+            required
+          />
+        </label>
+        <label className="auth-form__field">
+          <span>Подтверждение пароля</span>
+          <input
+            className="input"
+            type="password"
+            placeholder="Повторите пароль"
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            autoComplete="new-password"
+            required
+          />
+        </label>
+        {error ? <p className="form-message form-message--error">{error}</p> : null}
+        <button type="submit" className="button" disabled={isSubmitting}>
+          {isSubmitting ? "Создаем..." : "Создать аккаунт"}
+        </button>
+      </form>
+
+      <div className="auth-page__footer">
+        <span>Уже есть аккаунт?</span>
+        <Link to="/login" className="auth-page__link">
+          Войти
+        </Link>
+      </div>
+    </div>
+  );
 };
 
 export default RegisterPage;
-
