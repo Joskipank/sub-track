@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { Button, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { ApiError } from "../api/httpClient";
 import { useAuth } from "../hooks/useAuth";
 import { useI18n } from "../context/SettingsContext";
 import type { AuthStackParamList } from "../types/navigation";
@@ -31,12 +30,7 @@ const RegisterScreen = () => {
       setError(null);
       await signUp({ name: name.trim(), email: email.trim(), password });
     } catch (registerError) {
-      const message =
-        registerError instanceof ApiError && registerError.status === 400
-          ? "Invalid registration payload."
-          : registerError instanceof Error
-            ? registerError.message
-            : tr("registerFailed");
+      const message = registerError instanceof Error ? registerError.message : tr("registerFailed");
       setError(message);
     } finally {
       setIsSubmitting(false);

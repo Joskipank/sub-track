@@ -1,10 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Button, ScrollView, StyleSheet, Text, View } from "react-native";
-import { ApiError } from "../api/httpClient";
-import { categoryApi } from "../api/categoryApi";
 import { subscriptionApi } from "../api/subscriptionApi";
 import { useI18n } from "../context/SettingsContext";
-import type { Category } from "../types/category";
 import type { SubscriptionStatus, UpcomingSubscription } from "../types/subscription";
 
 const dayOptions = [7, 30, 90];
@@ -13,28 +10,25 @@ const UpcomingScreen = () => {
   const { tr } = useI18n();
   const [days, setDays] = useState(7);
   const [items, setItems] = useState<UpcomingSubscription[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+
+  const formatStatus = (status: SubscriptionStatus) => {
+    if (status === "ACTIVE") return tr("statusActive");
+    if (status === "PAUSED") return tr("statusPaused");
+    return tr("statusCanceled");
+  };
 
   const load = useCallback(async (targetDays: number) => {
     try {
       setIsLoading(true);
       setError(null);
-      const [upcomingResponse, categoriesResponse] = await Promise.all([
-        subscriptionApi.getUpcoming(targetDays),
-        categoryApi.getAll()
-      ]);
+      const upcomingResponse = await subscriptionApi.getUpcoming(targetDays);
       setItems(upcomingResponse);
-      setCategories(categoriesResponse);
     } catch (loadError) {
       setError(
-        loadError instanceof ApiError && loadError.status === 400
-          ? "Invalid days value for upcoming."
-          : loadError instanceof Error
-            ? loadError.message
-            : tr("failedLoadSubscriptions")
+        loadError instanceof Error ? loadError.message : tr("failedLoadSubscriptions")
       );
     } finally {
       setIsLoading(false);
@@ -51,7 +45,7 @@ const UpcomingScreen = () => {
       setError(null);
       await subscriptionApi.update(item.id, {
         serviceName: item.serviceName,
-        categoryId: categories.find((category) => category.name === item.category)?.id ?? null,
+        categoryId: null,
         amount: item.amount,
         currency: item.currency,
         billingPeriod: item.billingPeriod,
@@ -61,11 +55,7 @@ const UpcomingScreen = () => {
       await load(days);
     } catch (updateError) {
       setError(
-        updateError instanceof ApiError && updateError.status === 400
-          ? "Invalid subscription payload."
-          : updateError instanceof Error
-            ? updateError.message
-            : tr("failedSaveSubscription")
+        updateError instanceof Error ? updateError.message : tr("failedSaveSubscription")
       );
     } finally {
       setBusyId(null);
@@ -92,27 +82,27 @@ const UpcomingScreen = () => {
           <Text>
             {item.amount} {item.currency}
           </Text>
-          <Text>{tr("status")}: {item.status}</Text>
+          <Text>{tr("status")}: {formatStatus(item.status)}</Text>
           <Text>
             {tr("inDays")} {item.daysUntilBilling}
             {tr("dayShort")}
           </Text>
           <View style={styles.row}>
-            <Button
-              disabled={busyId === item.id || item.status === "PAUSED"}
-              title="Pause"
-              onPress={() => void onQuickStatusChange(item, "PAUSED")}
-            />
-            <Button
-              disabled={busyId === item.id || item.status === "CANCELED"}
-              title="Cancel"
-              onPress={() => void onQuickStatusChange(item, "CANCELED")}
-            />
-            <Button
-              disabled={busyId === item.id || item.status === "ACTIVE"}
-              title="Activate"
-              onPress={() => void onQuickStatusChange(item, "ACTIVE")}
-            />
+              <Button
+                disabled={busyId === item.id || item.status === "PAUSED"}
+                title={tr("pause")}
+                onPress={() => void onQuickStatusChange(item, "PAUSED")}
+              />
+              <Button
+                disabled={busyId === item.id || item.status === "CANCELED"}
+                title={tr("cancel")}
+                onPress={() => void onQuickStatusChange(item, "CANCELED")}
+              />
+              <Button
+                disabled={busyId === item.id || item.status === "ACTIVE"}
+                title={tr("activate")}
+                onPress={() => void onQuickStatusChange(item, "ACTIVE")}
+              />
           </View>
         </View>
       ))}

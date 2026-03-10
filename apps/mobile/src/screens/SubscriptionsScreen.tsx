@@ -1,19 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { ApiError } from "../api/httpClient";
-import { categoryApi } from "../api/categoryApi";
-import { notificationApi } from "../api/notificationApi";
+import { Alert, Button, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { subscriptionApi } from "../api/subscriptionApi";
 import { useI18n } from "../context/SettingsContext";
-import type { Category } from "../types/category";
-import type { NotificationItem } from "../types/notification";
-import type {
-  BillingPeriod,
-  Subscription,
-  SubscriptionRequest,
-  SubscriptionStatus,
-  UpcomingSubscription
-} from "../types/subscription";
+import type { BillingPeriod, Subscription, SubscriptionRequest, SubscriptionStatus } from "../types/subscription";
 
 const billingPeriods: BillingPeriod[] = ["WEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"];
 const statusOptions: Array<SubscriptionStatus | "ALL"> = ["ALL", "ACTIVE", "PAUSED", "CANCELED"];
@@ -22,19 +11,8 @@ const currencies = [
   { code: "RUB", label: "RUB" }
 ];
 
-const filterOrphanNotifications = (
-  notifications: NotificationItem[],
-  subscriptions: Subscription[]
-) => {
-  const subscriptionIds = new Set(subscriptions.map((item) => item.id));
-  return notifications.filter((notification) =>
-    notification.subscriptionId == null ? true : subscriptionIds.has(notification.subscriptionId)
-  );
-};
-
 const initialForm: SubscriptionRequest = {
   serviceName: "",
-  categoryId: null,
   amount: 9.99,
   currency: "USD",
   billingPeriod: "MONTHLY",
@@ -44,21 +22,35 @@ const initialForm: SubscriptionRequest = {
 const SubscriptionsScreen = () => {
   const { tr } = useI18n();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [upcoming, setUpcoming] = useState<UpcomingSubscription[]>([]);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [selectedSubscription, setSelectedSubscription] = useState<Subscription | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<SubscriptionStatus | "ALL">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortMode, setSortMode] = useState<"NEXT_ASC" | "AMOUNT_DESC">("NEXT_ASC");
   const [form, setForm] = useState<SubscriptionRequest>(initialForm);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const currentCategoryName = useMemo(
-    () => categories.find((item) => item.id === form.categoryId)?.name ?? tr("none"),
-    [categories, form.categoryId, tr]
+  const formatBillingPeriod = useCallback(
+    (period: BillingPeriod) => {
+      if (period === "WEEKLY") return tr("periodWeekly");
+      if (period === "MONTHLY") return tr("periodMonthly");
+      if (period === "QUARTERLY") return tr("periodQuarterly");
+      if (period === "YEARLY") return tr("periodYearly");
+      return period;
+    },
+    [tr]
+  );
+
+  const formatStatus = useCallback(
+    (status: SubscriptionStatus | "ALL") => {
+      if (status === "ALL") return tr("statusAll");
+      if (status === "ACTIVE") return tr("statusActive");
+      if (status === "PAUSED") return tr("statusPaused");
+      return tr("statusCanceled");
+    },
+    [tr]
   );
 
   const visibleSubscriptions = useMemo(() => {
@@ -68,8 +60,7 @@ const SubscriptionsScreen = () => {
       const byStatus = statusFilter === "ALL" || subscription.status === statusFilter;
       const bySearch =
         normalizedQuery.length === 0 ||
-        subscription.serviceName.toLowerCase().includes(normalizedQuery) ||
-        (subscription.category ?? "").toLowerCase().includes(normalizedQuery);
+        subscription.serviceName.toLowerCase().includes(normalizedQuery);
       return byStatus && bySearch;
     });
 
@@ -87,28 +78,14 @@ const SubscriptionsScreen = () => {
     try {
       setIsLoading(true);
       setError(null);
-      const [subsRes, catsRes, upcomingRes, notificationsRes] = await Promise.all([
-        subscriptionApi.getAll(),
-        categoryApi.getAll(),
-        subscriptionApi.getUpcoming(7),
-        notificationApi.getByDays(7)
-      ]);
+      const subsRes = await subscriptionApi.getAll();
       setSubscriptions(subsRes);
-      setCategories(catsRes);
-      setUpcoming(upcomingRes);
-      setNotifications(filterOrphanNotifications(notificationsRes, subsRes));
     } catch (loadError) {
-      setError(
-        loadError instanceof ApiError && loadError.status === 400
-          ? "Invalid days value for upcoming/reminders."
-          : loadError instanceof Error
-            ? loadError.message
-            : tr("failedLoadSubscriptions")
-      );
+      setError(loadError instanceof Error ? loadError.message : tr("failedLoadSubscriptions"));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [tr]);
 
   useEffect(() => {
     void loadAll();
@@ -117,6 +94,7 @@ const SubscriptionsScreen = () => {
   const resetForm = () => {
     setForm(initialForm);
     setEditingId(null);
+    setIsFormOpen(false);
   };
 
   const onSubmit = async () => {
@@ -131,21 +109,26 @@ const SubscriptionsScreen = () => {
         return;
       }
 
+      const payload: SubscriptionRequest = {
+        serviceName: form.serviceName.trim(),
+        amount: form.amount,
+        currency: form.currency,
+        billingPeriod: form.billingPeriod,
+        nextBillingDate: form.nextBillingDate.trim(),
+        status: form.status
+      };
+
       if (editingId) {
-        await subscriptionApi.update(editingId, form);
+        await subscriptionApi.update(editingId, payload);
       } else {
-        await subscriptionApi.create(form);
+        await subscriptionApi.create(payload);
       }
 
       resetForm();
       await loadAll();
     } catch (submitError) {
       setError(
-        submitError instanceof ApiError && submitError.status === 400
-          ? "Invalid subscription payload."
-          : submitError instanceof Error
-            ? submitError.message
-            : tr("failedSaveSubscription")
+        submitError instanceof Error ? submitError.message : tr("failedSaveSubscription")
       );
     }
   };
@@ -154,13 +137,13 @@ const SubscriptionsScreen = () => {
     setEditingId(subscription.id);
     setForm({
       serviceName: subscription.serviceName,
-      categoryId: categories.find((item) => item.name === subscription.category)?.id ?? null,
       amount: subscription.amount,
       currency: subscription.currency,
       billingPeriod: subscription.billingPeriod,
       nextBillingDate: subscription.nextBillingDate,
       status: subscription.status
     });
+    setIsFormOpen(true);
   };
 
   const onDelete = async (id: number) => {
@@ -170,13 +153,20 @@ const SubscriptionsScreen = () => {
       await loadAll();
     } catch (deleteError) {
       setError(
-        deleteError instanceof ApiError && deleteError.status === 400
-          ? "Invalid subscription id."
-          : deleteError instanceof Error
-            ? deleteError.message
-            : tr("failedDeleteSubscription")
+        deleteError instanceof Error ? deleteError.message : tr("failedDeleteSubscription")
       );
     }
+  };
+
+  const onDeletePress = (id: number) => {
+    Alert.alert(tr("confirmDeleteTitle"), tr("confirmDeleteMessage"), [
+      { text: tr("cancel"), style: "cancel" },
+      {
+        text: tr("delete"),
+        style: "destructive",
+        onPress: () => void onDelete(id)
+      }
+    ]);
   };
 
   const onLoadDetails = async (id: number) => {
@@ -186,104 +176,27 @@ const SubscriptionsScreen = () => {
       setSelectedSubscription(details);
     } catch (detailsError) {
       setError(
-        detailsError instanceof ApiError && detailsError.status === 400
-          ? "Invalid subscription id."
-          : detailsError instanceof Error
-            ? detailsError.message
-            : tr("failedLoadDetails")
+        detailsError instanceof Error ? detailsError.message : tr("failedLoadDetails")
       );
     }
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>{tr("subscriptionsTitle")}</Text>
       {isLoading ? <Text>{tr("loading")}</Text> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{editingId ? `${tr("editWithId")}${editingId}` : tr("createSubscription")}</Text>
-        <TextInput
-          placeholder={tr("serviceName")}
-          style={styles.input}
-          value={form.serviceName}
-          onChangeText={(value) => setForm((prev) => ({ ...prev, serviceName: value }))}
-        />
-        <TextInput
-          placeholder={tr("amount")}
-          keyboardType="numeric"
-          style={styles.input}
-          value={String(form.amount)}
-          onChangeText={(value) =>
-            setForm((prev) => ({ ...prev, amount: Number(value.replace(",", ".")) || 0 }))
-          }
-        />
-        <Text>{tr("currency")}</Text>
-        <View style={styles.row}>
-          {currencies.map((currency) => (
-            <TouchableOpacity
-              key={currency.code}
-              style={[styles.pill, form.currency === currency.code ? styles.pillActive : null]}
-              onPress={() => setForm((prev) => ({ ...prev, currency: currency.code }))}
-            >
-              <Text>{currency.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <TextInput
-          placeholder={tr("nextBillingDate")}
-          style={styles.input}
-          value={form.nextBillingDate}
-          onChangeText={(value) => setForm((prev) => ({ ...prev, nextBillingDate: value }))}
-        />
-
-        <Text>{tr("billingPeriod")}: {form.billingPeriod}</Text>
-        <View style={styles.row}>
-          {billingPeriods.map((period) => (
-            <TouchableOpacity
-              key={period}
-              style={[styles.pill, form.billingPeriod === period ? styles.pillActive : null]}
-              onPress={() => setForm((prev) => ({ ...prev, billingPeriod: period }))}
-            >
-              <Text>{period}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text>{tr("category")}: {currentCategoryName}</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-          <TouchableOpacity
-            style={[styles.pill, form.categoryId === null ? styles.pillActive : null]}
-            onPress={() => setForm((prev) => ({ ...prev, categoryId: null }))}
-          >
-            <Text>{tr("none")}</Text>
-          </TouchableOpacity>
-          {categories.map((category) => (
-            <TouchableOpacity
-              key={category.id}
-              style={[styles.pill, form.categoryId === category.id ? styles.pillActive : null]}
-              onPress={() => setForm((prev) => ({ ...prev, categoryId: category.id }))}
-            >
-              <Text>{category.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        <View style={styles.row}>
-          <Button title={editingId ? tr("update") : tr("create")} onPress={() => void onSubmit()} />
-          {editingId ? <Button title={tr("cancel")} onPress={resetForm} /> : null}
-        </View>
-      </View>
-
-      <View style={styles.section}>
         <Text style={styles.sectionTitle}>{tr("list")}</Text>
         <TextInput
-          placeholder="Search service/category"
+          placeholder={tr("searchByService")}
           style={styles.input}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
-        <Text>Status filter</Text>
+        <Text>{tr("statusFilter")}</Text>
         <View style={styles.row}>
           {statusOptions.map((option) => (
             <TouchableOpacity
@@ -291,23 +204,23 @@ const SubscriptionsScreen = () => {
               style={[styles.pill, statusFilter === option ? styles.pillActive : null]}
               onPress={() => setStatusFilter(option)}
             >
-              <Text>{option}</Text>
+              <Text>{formatStatus(option)}</Text>
             </TouchableOpacity>
           ))}
         </View>
-        <Text>Sort by</Text>
+        <Text>{tr("sortBy")}</Text>
         <View style={styles.row}>
           <TouchableOpacity
             style={[styles.pill, sortMode === "NEXT_ASC" ? styles.pillActive : null]}
             onPress={() => setSortMode("NEXT_ASC")}
           >
-            <Text>Next date</Text>
+            <Text>{tr("sortNextDate")}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.pill, sortMode === "AMOUNT_DESC" ? styles.pillActive : null]}
             onPress={() => setSortMode("AMOUNT_DESC")}
           >
-            <Text>Amount desc</Text>
+            <Text>{tr("sortAmountDesc")}</Text>
           </TouchableOpacity>
         </View>
 
@@ -316,14 +229,16 @@ const SubscriptionsScreen = () => {
           <View key={subscription.id} style={styles.card}>
             <Text>{subscription.serviceName}</Text>
             <Text>
-              {subscription.amount} {subscription.currency} | {subscription.billingPeriod}
+              {subscription.amount} {subscription.currency} | {formatBillingPeriod(subscription.billingPeriod)}
             </Text>
-            <Text>Next: {subscription.nextBillingDate}</Text>
-            <Text>{tr("status")}: {subscription.status}</Text>
+            <Text>{tr("nextLabel")}: {subscription.nextBillingDate}</Text>
+            <Text>
+              {tr("status")}: {formatStatus(subscription.status)}
+            </Text>
             <View style={styles.row}>
               <Button title={tr("details")} onPress={() => void onLoadDetails(subscription.id)} />
               <Button title={tr("edit")} onPress={() => onEdit(subscription)} />
-              <Button title={tr("delete")} onPress={() => void onDelete(subscription.id)} />
+              <Button title={tr("delete")} onPress={() => onDeletePress(subscription.id)} />
             </View>
           </View>
         ))}
@@ -331,43 +246,104 @@ const SubscriptionsScreen = () => {
 
       {selectedSubscription ? (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{tr("detailsWithId")}{selectedSubscription.id}</Text>
-          <Text>{tr("service")}: {selectedSubscription.serviceName}</Text>
-          <Text>{tr("category")}: {selectedSubscription.category || tr("none")}</Text>
+          <Text style={styles.sectionTitle}>
+            {tr("detailsWithId")}
+            {selectedSubscription.id}
+          </Text>
+          <Text>
+            {tr("service")}: {selectedSubscription.serviceName}
+          </Text>
           <Text>
             {tr("amount")}: {selectedSubscription.amount} {selectedSubscription.currency}
           </Text>
-          <Text>{tr("period")}: {selectedSubscription.billingPeriod}</Text>
-          <Text>{tr("status")}: {selectedSubscription.status}</Text>
+          <Text>
+            {tr("period")}: {formatBillingPeriod(selectedSubscription.billingPeriod)}
+          </Text>
+          <Text>
+            {tr("status")}: {formatStatus(selectedSubscription.status)}
+          </Text>
         </View>
       ) : null}
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{tr("upcomingDays")}</Text>
-        {upcoming.length === 0 ? <Text>{tr("noUpcomingCharges")}</Text> : null}
-        {upcoming.map((item) => (
-          <Text key={item.id}>
-            {item.serviceName}: {item.amount} {item.currency}, {tr("inDays")} {item.daysUntilBilling}
-            {tr("dayShort")}
+      {isFormOpen ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            {editingId ? `${tr("editWithId")}${editingId}` : tr("createSubscription")}
           </Text>
-        ))}
-      </View>
+          <TextInput
+            placeholder={tr("serviceName")}
+            style={styles.input}
+            value={form.serviceName}
+            onChangeText={(value) => setForm((prev) => ({ ...prev, serviceName: value }))}
+          />
+          <TextInput
+            placeholder={tr("amount")}
+            keyboardType="numeric"
+            style={styles.input}
+            value={String(form.amount)}
+            onChangeText={(value) =>
+              setForm((prev) => ({ ...prev, amount: Number(value.replace(",", ".")) || 0 }))
+            }
+          />
+          <Text>{tr("currency")}</Text>
+          <View style={styles.row}>
+            {currencies.map((currency) => (
+              <TouchableOpacity
+                key={currency.code}
+                style={[styles.pill, form.currency === currency.code ? styles.pillActive : null]}
+                onPress={() => setForm((prev) => ({ ...prev, currency: currency.code }))}
+              >
+                <Text>{currency.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TextInput
+            placeholder={tr("nextBillingDate")}
+            style={styles.input}
+            value={form.nextBillingDate}
+            onChangeText={(value) => setForm((prev) => ({ ...prev, nextBillingDate: value }))}
+          />
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{tr("remindersDays")}</Text>
-        {notifications.length === 0 ? <Text>{tr("noReminders")}</Text> : null}
-        {notifications.map((item) => (
-          <Text key={item.id}>{item.message}</Text>
-        ))}
-      </View>
-    </ScrollView>
+          <Text>
+            {tr("billingPeriod")}: {formatBillingPeriod(form.billingPeriod)}
+          </Text>
+          <View style={styles.row}>
+            {billingPeriods.map((period) => (
+              <TouchableOpacity
+                key={period}
+                style={[styles.pill, form.billingPeriod === period ? styles.pillActive : null]}
+                onPress={() => setForm((prev) => ({ ...prev, billingPeriod: period }))}
+              >
+                <Text>{formatBillingPeriod(period)}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={styles.row}>
+            <Button title={editingId ? tr("update") : tr("create")} onPress={() => void onSubmit()} />
+            <Button title={tr("cancel")} onPress={resetForm} />
+          </View>
+        </View>
+      ) : null}
+      </ScrollView>
+
+      {!isFormOpen ? (
+        <View style={styles.bottomAction}>
+          <Button title={tr("createSubscription")} onPress={() => setIsFormOpen(true)} />
+        </View>
+      ) : null}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1
+  },
   container: {
     padding: 16,
-    gap: 12
+    gap: 12,
+    paddingBottom: 96
   },
   title: {
     fontSize: 24,
@@ -410,6 +386,13 @@ const styles = StyleSheet.create({
   },
   error: {
     color: "#b91c1c"
+  },
+  bottomAction: {
+    borderTopWidth: 1,
+    borderTopColor: "#e5e7eb",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#fff"
   }
 });
 

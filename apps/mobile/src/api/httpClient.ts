@@ -11,6 +11,7 @@ type ApiErrorPayload = {
   provider?: string;
   message?: string;
   error?: string;
+  errors?: Record<string, string>;
 };
 
 export const mapApiError = (error: unknown): ApiError => {
@@ -23,6 +24,12 @@ export const mapApiError = (error: unknown): ApiError => {
   const status = error.response?.status;
   const responseData = error.response?.data as ApiErrorPayload | undefined;
   const messageFromBody = responseData?.message ?? responseData?.error;
+  const validationMessage =
+    responseData?.errors && Object.keys(responseData.errors).length > 0
+      ? Object.entries(responseData.errors)
+          .map(([field, reason]) => `${field}: ${reason}`)
+          .join("; ")
+      : null;
 
   const message =
     responseData?.code === "IMPORT_CONSENT_REQUIRED"
@@ -30,7 +37,7 @@ export const mapApiError = (error: unknown): ApiError => {
       : status === 401
       ? "Unauthorized. Please sign in again."
       : status === 400
-        ? messageFromBody || "Invalid request payload."
+        ? validationMessage || messageFromBody || "Invalid request payload."
         : messageFromBody || error.message || "Network error.";
 
   const apiError = new ApiError(message);
