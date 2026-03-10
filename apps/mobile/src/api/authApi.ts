@@ -20,11 +20,11 @@ const extractToken = (data: RawAuthResponse): string => {
 
 export const authApi = {
   login: async (payload: AuthCredentials): Promise<AuthResponse> => {
-    const response = await httpClient.post<RawAuthResponse>("/auth/login", payload);
+    const response = await httpClient.post<RawAuthResponse>("/api/v1/auth/login", payload);
     return { token: extractToken(response.data) };
   },
   register: async (payload: RegisterPayload): Promise<AuthResponse> => {
-    const response = await httpClient.post<RawAuthResponse>("/auth/register", {
+    const response = await httpClient.post<RawAuthResponse>("/api/v1/auth/register", {
       email: payload.email,
       password: payload.password
     });

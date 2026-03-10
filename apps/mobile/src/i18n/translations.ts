@@ -1,4 +1,4 @@
-import type { AppLanguage } from "../types/settings";
+﻿import type { AppLanguage } from "../types/settings";
 
 const dictionary = {
   en: {
@@ -161,7 +161,7 @@ const dictionary = {
     signOut: "Выйти из аккаунта",
     failedSaveLanguage: "Не удалось сохранить язык.",
     failedLoadDashboard: "Не удалось загрузить дашборд.",
-    failedLoadSubscriptions: "Не удалось загрузить данные подписок.",
+    failedLoadSubscriptions: "Не удалось загрузить данные по подпискам.",
     failedSaveSubscription: "Не удалось сохранить подписку.",
     failedDeleteSubscription: "Не удалось удалить подписку.",
     failedLoadDetails: "Не удалось загрузить детали.",

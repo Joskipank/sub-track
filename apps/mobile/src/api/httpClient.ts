@@ -6,6 +6,13 @@ export class ApiError extends Error {
   details?: unknown;
 }
 
+type ApiErrorPayload = {
+  code?: string;
+  provider?: string;
+  message?: string;
+  error?: string;
+};
+
 export const mapApiError = (error: unknown): ApiError => {
   if (!axios.isAxiosError(error)) {
     const unknownError = new ApiError("Unexpected error.");
@@ -14,12 +21,13 @@ export const mapApiError = (error: unknown): ApiError => {
   }
 
   const status = error.response?.status;
-  const messageFromBody =
-    (error.response?.data as { message?: string; error?: string } | undefined)?.message ??
-    (error.response?.data as { message?: string; error?: string } | undefined)?.error;
+  const responseData = error.response?.data as ApiErrorPayload | undefined;
+  const messageFromBody = responseData?.message ?? responseData?.error;
 
   const message =
-    status === 401
+    responseData?.code === "IMPORT_CONSENT_REQUIRED"
+      ? responseData.message || "Import consent is required before import."
+      : status === 401
       ? "Unauthorized. Please sign in again."
       : status === 400
         ? messageFromBody || "Invalid request payload."
@@ -27,7 +35,7 @@ export const mapApiError = (error: unknown): ApiError => {
 
   const apiError = new ApiError(message);
   apiError.status = status;
-  apiError.details = error.response?.data;
+  apiError.details = responseData;
   return apiError;
 };
 
