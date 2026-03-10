@@ -404,12 +404,12 @@ paths:
                     - externalId: gmail-msg-success-001
                       from: billing@netflix.com
                       subject: Netflix renewal notice
-                      body: Your Netflix renewal is scheduled for 2026-03-20. Amount: 9.99 USD
+                      body: "Your Netflix renewal is scheduled for 2026-03-20. Amount: 9.99 USD"
                       receivedAt: 2026-03-08T10:00:00Z
                     - externalId: gmail-msg-success-002
                       from: billing@netflix.com
                       subject: Netflix renewal notice
-                      body: Your Netflix renewal is scheduled for 2026-04-20. Amount: 9.99 USD
+                      body: "Your Netflix renewal is scheduled for 2026-04-20. Amount: 9.99 USD"
                       receivedAt: 2026-03-08T10:05:00Z
               partial:
                 summary: Partial import with parser errors
@@ -419,12 +419,12 @@ paths:
                     - externalId: gmail-msg-partial-001
                       from: billing@netflix.com
                       subject: Netflix renewal notice
-                      body: Your Netflix renewal is scheduled for 2026-03-22. Amount: 9.99 USD
+                      body: "Your Netflix renewal is scheduled for 2026-03-22. Amount: 9.99 USD"
                       receivedAt: 2026-03-08T11:00:00Z
                     - externalId: gmail-msg-partial-002
                       from: billing@netflix.com
                       subject: Netflix renewal notice
-                      body: Amount: 9.99 USD
+                      body: "Amount: 9.99 USD"
                       receivedAt: 2026-03-08T11:01:00Z
                     - externalId: gmail-msg-partial-003
                       from: no-reply@example.com
@@ -439,7 +439,7 @@ paths:
                     - externalId: gmail-msg-fail-001
                       from: no-reply@example.com
                       subject: Your receipt
-                      body: Amount: 9.99 USD
+                      body: "Amount: 9.99 USD"
                       receivedAt: 2026-03-08T12:00:00Z
                     - externalId: gmail-msg-fail-002
                       from: billing@netflix.com

@@ -103,3 +103,10 @@ API-контракт backend считается стабильным и self-ser
 - обновить/добавить backend тесты под изменённое поведение;
 - обновить docs/demo сценарии при изменении внешнего поведения API;
 - не допускать “тихих” breaking changes (только с явной депрекацией/миграционными заметками).
+
+Автоматическая проверка контракта:
+- локальный запуск полного набора проверок:
+  - `powershell -ExecutionPolicy Bypass -File scripts/contracts/run-contract-checks.ps1`
+- обновление baseline только при осознанном контрактном изменении:
+  - `powershell -ExecutionPolicy Bypass -File scripts/contracts/update-openapi-baseline.ps1 -ConfirmContractChange`
+- детали: `docs/api-notes/contract-guard.md`

@@ -73,6 +73,12 @@
 - Same PR must update/extend backend tests for changed behavior.
 - Same PR must update demo docs (`docs/demo-script/*`, `docs/api-notes/endpoints.md`) when external behavior changes.
 - Silent breaking changes are prohibited; if breaking change is unavoidable, add deprecation window + migration note.
+- Breaking-check is enforced by `scripts/contracts/check-openapi-breaking.ps1` against `docs/api-notes/baseline/subtrack-openapi.baseline.yaml`.
+- Baseline updates are allowed only via explicit command with confirmation flag:
+  - `powershell -ExecutionPolicy Bypass -File scripts/contracts/update-openapi-baseline.ps1 -ConfirmContractChange`
+- Full local contract guard command:
+  - `powershell -ExecutionPolicy Bypass -File scripts/contracts/run-contract-checks.ps1`
+- Detailed rules: `docs/api-notes/contract-guard.md`.
 
 ## 9) Definition of Done for API changes
 - Code + OpenAPI + notes/docs updated and consistent.
