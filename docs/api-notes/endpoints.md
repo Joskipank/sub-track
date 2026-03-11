@@ -4,6 +4,8 @@ API endpoint notes for SubTrack.
 List auth, subscriptions, categories and analytics endpoints.
 Keep this file in sync with OpenAPI.
 
+Contract guard checks and baseline policy: `docs/api-notes/contract-guard.md`.
+
 ## Auth endpoints
 - `POST /api/v1/auth/register` returns `201` with JWT payload.
 - `POST /api/v1/auth/login` returns `200` with JWT payload.
@@ -23,3 +25,4 @@ Keep this file in sync with OpenAPI.
 ## Other authenticated endpoints
 - Integrations: `GET /api/v1/integrations`.
 - Recommendations: `GET /api/v1/recommendations?category=<category>`.
+  - Returns catalog-backed alternatives from `recommendation_catalog` (seeded by backend migrations).
