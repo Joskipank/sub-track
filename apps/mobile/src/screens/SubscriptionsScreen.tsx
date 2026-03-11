@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+
 import { Button, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { ApiError } from "../api/httpClient";
 import { categoryApi } from "../api/categoryApi";
@@ -13,6 +14,7 @@ import type {
 } from "../types/subscription";
 import type { AppPalette } from "../theme/theme";
 
+
 const billingPeriods: BillingPeriod[] = ["WEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"];
 const statusOptions: Array<SubscriptionStatus | "ALL"> = ["ALL", "ACTIVE", "PAUSED", "CANCELED"];
 const currencies = [
@@ -22,7 +24,6 @@ const currencies = [
 
 const initialForm: SubscriptionRequest = {
   serviceName: "",
-  categoryId: null,
   amount: 9.99,
   currency: "USD",
   billingPeriod: "MONTHLY",
@@ -33,19 +34,38 @@ const SubscriptionsScreen = () => {
   const { tr, colors } = useI18n();
   const styles = createStyles(colors);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+
   const [categories, setCategories] = useState<Category[]>([]);
+
   const [selectedSubscription, setSelectedSubscription] = useState<Subscription | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<SubscriptionStatus | "ALL">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortMode, setSortMode] = useState<"NEXT_ASC" | "AMOUNT_DESC">("NEXT_ASC");
   const [form, setForm] = useState<SubscriptionRequest>(initialForm);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const currentCategoryName = useMemo(
-    () => categories.find((item) => item.id === form.categoryId)?.name ?? tr("none"),
-    [categories, form.categoryId, tr]
+  const formatBillingPeriod = useCallback(
+    (period: BillingPeriod) => {
+      if (period === "WEEKLY") return tr("periodWeekly");
+      if (period === "MONTHLY") return tr("periodMonthly");
+      if (period === "QUARTERLY") return tr("periodQuarterly");
+      if (period === "YEARLY") return tr("periodYearly");
+      return period;
+    },
+    [tr]
+  );
+
+  const formatStatus = useCallback(
+    (status: SubscriptionStatus | "ALL") => {
+      if (status === "ALL") return tr("statusAll");
+      if (status === "ACTIVE") return tr("statusActive");
+      if (status === "PAUSED") return tr("statusPaused");
+      return tr("statusCanceled");
+    },
+    [tr]
   );
 
   const visibleSubscriptions = useMemo(() => {
@@ -55,8 +75,7 @@ const SubscriptionsScreen = () => {
       const byStatus = statusFilter === "ALL" || subscription.status === statusFilter;
       const bySearch =
         normalizedQuery.length === 0 ||
-        subscription.serviceName.toLowerCase().includes(normalizedQuery) ||
-        (subscription.category ?? "").toLowerCase().includes(normalizedQuery);
+        subscription.serviceName.toLowerCase().includes(normalizedQuery);
       return byStatus && bySearch;
     });
 
@@ -74,24 +93,20 @@ const SubscriptionsScreen = () => {
     try {
       setIsLoading(true);
       setError(null);
+
       const [subsRes, catsRes] = await Promise.all([
         subscriptionApi.getAll(),
         categoryApi.getAll()
       ]);
       setSubscriptions(subsRes);
       setCategories(catsRes);
+
     } catch (loadError) {
-      setError(
-        loadError instanceof ApiError && loadError.status === 400
-          ? "Invalid days value for upcoming/reminders."
-          : loadError instanceof Error
-            ? loadError.message
-            : tr("failedLoadSubscriptions")
-      );
+      setError(loadError instanceof Error ? loadError.message : tr("failedLoadSubscriptions"));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [tr]);
 
   useEffect(() => {
     void loadAll();
@@ -100,6 +115,7 @@ const SubscriptionsScreen = () => {
   const resetForm = () => {
     setForm(initialForm);
     setEditingId(null);
+    setIsFormOpen(false);
   };
 
   const onSubmit = async () => {
@@ -114,21 +130,26 @@ const SubscriptionsScreen = () => {
         return;
       }
 
+      const payload: SubscriptionRequest = {
+        serviceName: form.serviceName.trim(),
+        amount: form.amount,
+        currency: form.currency,
+        billingPeriod: form.billingPeriod,
+        nextBillingDate: form.nextBillingDate.trim(),
+        status: form.status
+      };
+
       if (editingId) {
-        await subscriptionApi.update(editingId, form);
+        await subscriptionApi.update(editingId, payload);
       } else {
-        await subscriptionApi.create(form);
+        await subscriptionApi.create(payload);
       }
 
       resetForm();
       await loadAll();
     } catch (submitError) {
       setError(
-        submitError instanceof ApiError && submitError.status === 400
-          ? "Invalid subscription payload."
-          : submitError instanceof Error
-            ? submitError.message
-            : tr("failedSaveSubscription")
+        submitError instanceof Error ? submitError.message : tr("failedSaveSubscription")
       );
     }
   };
@@ -137,13 +158,13 @@ const SubscriptionsScreen = () => {
     setEditingId(subscription.id);
     setForm({
       serviceName: subscription.serviceName,
-      categoryId: categories.find((item) => item.name === subscription.category)?.id ?? null,
       amount: subscription.amount,
       currency: subscription.currency,
       billingPeriod: subscription.billingPeriod,
       nextBillingDate: subscription.nextBillingDate,
       status: subscription.status
     });
+    setIsFormOpen(true);
   };
 
   const onDelete = async (id: number) => {
@@ -153,13 +174,20 @@ const SubscriptionsScreen = () => {
       await loadAll();
     } catch (deleteError) {
       setError(
-        deleteError instanceof ApiError && deleteError.status === 400
-          ? "Invalid subscription id."
-          : deleteError instanceof Error
-            ? deleteError.message
-            : tr("failedDeleteSubscription")
+        deleteError instanceof Error ? deleteError.message : tr("failedDeleteSubscription")
       );
     }
+  };
+
+  const onDeletePress = (id: number) => {
+    Alert.alert(tr("confirmDeleteTitle"), tr("confirmDeleteMessage"), [
+      { text: tr("cancel"), style: "cancel" },
+      {
+        text: tr("delete"),
+        style: "destructive",
+        onPress: () => void onDelete(id)
+      }
+    ]);
   };
 
   const onLoadDetails = async (id: number) => {
@@ -169,22 +197,20 @@ const SubscriptionsScreen = () => {
       setSelectedSubscription(details);
     } catch (detailsError) {
       setError(
-        detailsError instanceof ApiError && detailsError.status === 400
-          ? "Invalid subscription id."
-          : detailsError instanceof Error
-            ? detailsError.message
-            : tr("failedLoadDetails")
+        detailsError instanceof Error ? detailsError.message : tr("failedLoadDetails")
       );
     }
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>{tr("subscriptionsTitle")}</Text>
       {isLoading ? <Text style={styles.meta}>{tr("loading")}</Text> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <View style={styles.section}>
+
         <Text style={styles.sectionTitle}>{editingId ? `${tr("editWithId")}${editingId}` : tr("createSubscription")}</Text>
         <TextInput
           placeholder={tr("serviceName")}
@@ -259,14 +285,17 @@ const SubscriptionsScreen = () => {
       </View>
 
       <View style={styles.section}>
+
         <Text style={styles.sectionTitle}>{tr("list")}</Text>
         <TextInput
-          placeholder="Search service/category"
+          placeholder={tr("searchByService")}
           style={styles.input}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
+
         <Text style={styles.label}>Status filter</Text>
+
         <View style={styles.row}>
           {statusOptions.map((option) => (
             <TouchableOpacity
@@ -274,39 +303,43 @@ const SubscriptionsScreen = () => {
               style={[styles.pill, statusFilter === option ? styles.pillActive : null]}
               onPress={() => setStatusFilter(option)}
             >
-              <Text>{option}</Text>
+              <Text>{formatStatus(option)}</Text>
             </TouchableOpacity>
           ))}
         </View>
+
         <Text style={styles.label}>Sort by</Text>
+
         <View style={styles.row}>
           <TouchableOpacity
             style={[styles.pill, sortMode === "NEXT_ASC" ? styles.pillActive : null]}
             onPress={() => setSortMode("NEXT_ASC")}
           >
-            <Text>Next date</Text>
+            <Text>{tr("sortNextDate")}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.pill, sortMode === "AMOUNT_DESC" ? styles.pillActive : null]}
             onPress={() => setSortMode("AMOUNT_DESC")}
           >
-            <Text>Amount desc</Text>
+            <Text>{tr("sortAmountDesc")}</Text>
           </TouchableOpacity>
         </View>
 
         {visibleSubscriptions.length === 0 ? <Text>{tr("noSubscriptions")}</Text> : null}
         {visibleSubscriptions.map((subscription) => (
           <View key={subscription.id} style={styles.card}>
+
             <Text style={styles.cardTitle}>{subscription.serviceName}</Text>
             <Text style={styles.meta}>
               {subscription.amount} {subscription.currency} | {subscription.billingPeriod}
             </Text>
             <Text style={styles.meta}>Next: {subscription.nextBillingDate}</Text>
             <Text style={styles.meta}>{tr("status")}: {subscription.status}</Text>
+
             <View style={styles.row}>
               <Button title={tr("details")} onPress={() => void onLoadDetails(subscription.id)} />
               <Button title={tr("edit")} onPress={() => onEdit(subscription)} />
-              <Button title={tr("delete")} onPress={() => void onDelete(subscription.id)} />
+              <Button title={tr("delete")} onPress={() => onDeletePress(subscription.id)} />
             </View>
           </View>
         ))}
@@ -314,6 +347,7 @@ const SubscriptionsScreen = () => {
 
       {selectedSubscription ? (
         <View style={styles.section}>
+
           <Text style={styles.sectionTitle}>{tr("detailsWithId")}{selectedSubscription.id}</Text>
           <Text style={styles.meta}>{tr("service")}: {selectedSubscription.serviceName}</Text>
           <Text style={styles.meta}>{tr("category")}: {selectedSubscription.category || tr("none")}</Text>
@@ -335,6 +369,7 @@ const createStyles = (colors: AppPalette) =>
     padding: 16,
     gap: 14,
     backgroundColor: colors.bg
+
   },
   title: {
     fontSize: 30,
@@ -390,6 +425,7 @@ const createStyles = (colors: AppPalette) =>
     gap: 6
   },
   error: {
+
     color: colors.danger
   },
   label: {
@@ -403,6 +439,7 @@ const createStyles = (colors: AppPalette) =>
   },
   meta: {
     color: colors.textMuted
+
   }
 });
 

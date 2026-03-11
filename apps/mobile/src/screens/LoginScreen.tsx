@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { ApiError } from "../api/httpClient";
 import { useAuth } from "../hooks/useAuth";
 import { useI18n } from "../context/SettingsContext";
 import type { AuthStackParamList } from "../types/navigation";
@@ -33,12 +32,7 @@ const LoginScreen = () => {
       setError(null);
       await signIn({ email: email.trim(), password });
     } catch (loginError) {
-      const message =
-        loginError instanceof ApiError && loginError.status === 400
-          ? "Invalid email or password format."
-          : loginError instanceof Error
-            ? loginError.message
-            : tr("loginFailed");
+      const message = loginError instanceof Error ? loginError.message : tr("loginFailed");
       setError(message);
     } finally {
       setIsSubmitting(false);

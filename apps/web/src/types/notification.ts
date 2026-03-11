@@ -1,4 +1,7 @@
-﻿export interface Notification {
-  id: string;
+export interface Notification {
+  id: number;
+  type: string;
   message: string;
+  scheduledAt: string;
+  status: string;
 }

@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
+
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { categoryApi } from "../api/categoryApi";
 import { ApiError } from "../api/httpClient";
+
 import { subscriptionApi } from "../api/subscriptionApi";
 import AppButton from "../components/AppButton";
 import { useI18n } from "../context/SettingsContext";
-import type { Category } from "../types/category";
 import type { SubscriptionStatus, UpcomingSubscription } from "../types/subscription";
 import type { AppPalette } from "../theme/theme";
 
@@ -16,23 +17,26 @@ const UpcomingScreen = () => {
   const styles = createStyles(colors);
   const [days, setDays] = useState(7);
   const [items, setItems] = useState<UpcomingSubscription[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+
+  const formatStatus = (status: SubscriptionStatus) => {
+    if (status === "ACTIVE") return tr("statusActive");
+    if (status === "PAUSED") return tr("statusPaused");
+    return tr("statusCanceled");
+  };
 
   const load = useCallback(async (targetDays: number) => {
     try {
       setIsLoading(true);
       setError(null);
-      const [upcomingResponse, categoriesResponse] = await Promise.all([
-        subscriptionApi.getUpcoming(targetDays),
-        categoryApi.getAll()
-      ]);
+      const upcomingResponse = await subscriptionApi.getUpcoming(targetDays);
       setItems(upcomingResponse);
-      setCategories(categoriesResponse);
     } catch (loadError) {
+
       setError(loadError instanceof ApiError ? loadError.message : tr("failedLoadSubscriptions"));
+
     } finally {
       setIsLoading(false);
     }
@@ -48,7 +52,7 @@ const UpcomingScreen = () => {
       setError(null);
       await subscriptionApi.update(item.id, {
         serviceName: item.serviceName,
-        categoryId: categories.find((category) => category.name === item.category)?.id ?? null,
+        categoryId: null,
         amount: item.amount,
         currency: item.currency,
         billingPeriod: item.billingPeriod,
@@ -57,7 +61,9 @@ const UpcomingScreen = () => {
       });
       await load(days);
     } catch (updateError) {
+
       setError(updateError instanceof ApiError ? updateError.message : tr("failedSaveSubscription"));
+
     } finally {
       setBusyId(null);
     }
@@ -95,6 +101,7 @@ const UpcomingScreen = () => {
           <Text style={styles.meta}>
             {item.amount} {item.currency}
           </Text>
+
           <Text style={styles.meta}>
             {tr("status")}: {formatStatus(item.status)}
           </Text>
@@ -120,6 +127,7 @@ const UpcomingScreen = () => {
               title="Activate"
               onPress={() => void onQuickStatusChange(item, "ACTIVE")}
             />
+
           </View>
         </View>
       ))}
