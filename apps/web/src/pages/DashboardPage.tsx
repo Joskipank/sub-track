@@ -20,7 +20,7 @@ const DashboardPage = () => {
       const response = await dashboardApi.get("month", 7);
       setData(response);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить дашборд");
+      setError(loadError instanceof Error ? loadError.message : "Failed to load dashboard");
     } finally {
       setIsLoading(false);
     }
@@ -46,7 +46,7 @@ const DashboardPage = () => {
           {data
             ? formatCurrency(data.summary.totalAmount, data.summary.currency)
             : isLoading
-              ? "Загрузка..."
+              ? t("common_loading")
               : "0"}
         </p>
         <p>{t("dashboard_active")}: {data?.summary.activeSubscriptions ?? (isLoading ? "..." : 0)}</p>
@@ -70,13 +70,13 @@ const DashboardPage = () => {
 
       <section className="section">
         <h2 className="section__title">{t("dashboard_upcoming")}</h2>
-        {data?.upcoming.length ? (
+        {(data?.upcoming?.length ?? 0) > 0 ? (
           <div className="stack-list">
-            {data.upcoming.map((item) => (
+            {(data?.upcoming ?? []).map((item) => (
               <div key={item.id} className="card-row">
                 <strong>{item.serviceName}</strong>
                 <span>
-                  {formatCurrency(item.amount, item.currency)} · {item.nextBillingDate}
+                  {formatCurrency(item.amount, item.currency)} - {item.nextBillingDate}
                 </span>
               </div>
             ))}
@@ -88,9 +88,9 @@ const DashboardPage = () => {
 
       <section className="section">
         <h2 className="section__title">{t("dashboard_notifications")}</h2>
-        {data?.notifications.length ? (
+        {(data?.notifications?.length ?? 0) > 0 ? (
           <div className="stack-list">
-            {data.notifications.map((item) => (
+            {(data?.notifications ?? []).map((item) => (
               <div key={item.id} className="card-row">
                 <strong>{item.type}</strong>
                 <span>{item.message}</span>
