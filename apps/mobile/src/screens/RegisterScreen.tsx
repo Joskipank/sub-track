@@ -1,18 +1,21 @@
 import React, { useState } from "react";
-import { Button, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ApiError } from "../api/httpClient";
 import { useAuth } from "../hooks/useAuth";
 import { useI18n } from "../context/SettingsContext";
 import type { AuthStackParamList } from "../types/navigation";
+import AppButton from "../components/AppButton";
+import type { AppPalette } from "../theme/theme";
 
 type RegisterScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, "Register">;
 
 const RegisterScreen = () => {
   const navigation = useNavigation<RegisterScreenNavigationProp>();
   const { signUp } = useAuth();
-  const { tr } = useI18n();
+  const { tr, colors } = useI18n();
+  const styles = createStyles(colors);
   const [name, setName] = useState("Demo User");
   const [email, setEmail] = useState("demo@subtrack.app");
   const [password, setPassword] = useState("demo1234");
@@ -45,12 +48,30 @@ const RegisterScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{tr("register")}</Text>
-      <TextInput placeholder={tr("name")} style={styles.input} value={name} onChangeText={setName} />
+      <View style={styles.hero}>
+        <View style={styles.brandRow}>
+          <View style={styles.brandDark}>
+            <Text style={styles.brandDarkText}>Sub</Text>
+          </View>
+          <View style={styles.brandAccent}>
+            <Text style={styles.brandAccentText}>Track</Text>
+          </View>
+        </View>
+        <Text style={styles.kicker}>Create a direct, high-contrast account profile</Text>
+        <Text style={styles.title}>{tr("register")}</Text>
+      </View>
+      <TextInput
+        placeholder={tr("name")}
+        placeholderTextColor={colors.textMuted}
+        style={styles.input}
+        value={name}
+        onChangeText={setName}
+      />
       <TextInput
         autoCapitalize="none"
         keyboardType="email-address"
         placeholder={tr("email")}
+        placeholderTextColor={colors.textMuted}
         style={styles.input}
         value={email}
         onChangeText={setEmail}
@@ -58,45 +79,97 @@ const RegisterScreen = () => {
       <View style={styles.passwordRow}>
         <TextInput
           placeholder={tr("password")}
+          placeholderTextColor={colors.textMuted}
           secureTextEntry={!showPassword}
           style={[styles.input, styles.passwordInput]}
           value={password}
           onChangeText={setPassword}
         />
-        <Button title={showPassword ? tr("hide") : tr("show")} onPress={() => setShowPassword((prev) => !prev)} />
+        <AppButton
+          title={showPassword ? tr("hide") : tr("show")}
+          variant="ghost"
+          onPress={() => setShowPassword((prev) => !prev)}
+        />
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <View style={styles.action}>
-        <Button
+        <AppButton
           disabled={isSubmitting}
+          fullWidth
           title={isSubmitting ? tr("creating") : tr("createAccount")}
           onPress={onRegister}
         />
       </View>
-      <Button title={tr("backToLogin")} onPress={() => navigation.navigate("Login")} />
+      <Pressable onPress={() => navigation.navigate("Login")}>
+        <Text style={styles.link}>{tr("backToLogin")}</Text>
+      </Pressable>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) =>
+  StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
-    gap: 12
+    gap: 14,
+    backgroundColor: colors.bg
+  },
+  hero: {
+    gap: 10,
+    marginBottom: 8
+  },
+  brandRow: {
+    flexDirection: "row",
+    alignSelf: "flex-start"
+  },
+  brandDark: {
+    backgroundColor: colors.sidebar,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10
+  },
+  brandAccent: {
+    backgroundColor: colors.accent,
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10
+  },
+  brandDarkText: {
+    color: colors.sidebarText,
+    fontSize: 28,
+    fontWeight: "900",
+    letterSpacing: 0.4
+  },
+  brandAccentText: {
+    color: colors.accentText,
+    fontSize: 28,
+    fontWeight: "900",
+    letterSpacing: 0.4
+  },
+  kicker: {
+    color: colors.textMuted,
+    fontSize: 13,
+    textTransform: "uppercase",
+    letterSpacing: 1.1
   },
   title: {
-    fontSize: 24,
-    fontWeight: "700"
+    fontSize: 32,
+    fontWeight: "900",
+    color: colors.text
   },
   input: {
     width: "100%",
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10
+    borderColor: colors.border,
+    backgroundColor: colors.bgElevated,
+    color: colors.text,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14
   },
   passwordRow: {
     width: "100%",
@@ -112,7 +185,12 @@ const styles = StyleSheet.create({
   },
   error: {
     width: "100%",
-    color: "#b91c1c"
+    color: colors.danger
+  },
+  link: {
+    color: colors.accent,
+    fontWeight: "700",
+    letterSpacing: 0.3
   }
 });
 

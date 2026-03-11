@@ -1,12 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { consentApi, type ImportConsentStatus } from "../api/consentApi";
 import { ApiError } from "../api/httpClient";
 import { importApi } from "../api/importApi";
 import type { ImportHistoryItem, ImportResult, MailMessageRequest } from "../types/import";
+import { useI18n } from "../context/SettingsContext";
+import AppButton from "../components/AppButton";
+import type { AppPalette } from "../theme/theme";
 
 const ImportScreen = () => {
+  const { colors } = useI18n();
+  const styles = createStyles(colors);
   const [history, setHistory] = useState<ImportHistoryItem[]>([]);
   const [details, setDetails] = useState<ImportResult | null>(null);
+  const [consent, setConsent] = useState<ImportConsentStatus | null>(null);
+  const [isConsentLoading, setIsConsentLoading] = useState(true);
+  const [isConsentUpdating, setIsConsentUpdating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +48,28 @@ const ImportScreen = () => {
     void loadHistory();
   }, [loadHistory]);
 
+  const loadConsent = useCallback(async () => {
+    try {
+      setIsConsentLoading(true);
+      const response = await consentApi.getImportConsentStatus("GMAIL");
+      setConsent(response);
+    } catch (loadError) {
+      setError(loadError instanceof ApiError ? loadError.message : "Failed to load consent status.");
+    } finally {
+      setIsConsentLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadConsent();
+  }, [loadConsent]);
+
   const onStartImport = async () => {
     try {
+      if (consent?.status !== "GRANTED") {
+        setError("Grant consent before import.");
+        return;
+      }
       setError(null);
       setIsSubmitting(true);
       const payload: MailMessageRequest = {
@@ -69,6 +98,32 @@ const ImportScreen = () => {
     }
   };
 
+  const onGrantConsent = async () => {
+    try {
+      setError(null);
+      setIsConsentUpdating(true);
+      const response = await consentApi.grantImportConsent("GMAIL");
+      setConsent(response);
+    } catch (updateError) {
+      setError(updateError instanceof ApiError ? updateError.message : "Failed to grant consent.");
+    } finally {
+      setIsConsentUpdating(false);
+    }
+  };
+
+  const onRevokeConsent = async () => {
+    try {
+      setError(null);
+      setIsConsentUpdating(true);
+      const response = await consentApi.revokeImportConsent("GMAIL");
+      setConsent(response);
+    } catch (updateError) {
+      setError(updateError instanceof ApiError ? updateError.message : "Failed to revoke consent.");
+    } finally {
+      setIsConsentUpdating(false);
+    }
+  };
+
   const onLoadDetails = async (id: number) => {
     try {
       setError(null);
@@ -88,22 +143,55 @@ const ImportScreen = () => {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Import</Text>
-      {isLoading ? <Text>Loading history...</Text> : null}
+      {isLoading ? <Text style={styles.meta}>Loading history...</Text> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Import consent</Text>
+        {isConsentLoading ? <Text style={styles.meta}>Loading consent...</Text> : null}
+        <Text style={styles.meta}>Status: {consent?.status ?? "UNKNOWN"}</Text>
+        <View style={styles.actions}>
+          <AppButton
+            title={isConsentUpdating ? "Granting..." : "Grant consent"}
+            onPress={() => void onGrantConsent()}
+            disabled={isConsentLoading || isConsentUpdating}
+          />
+          <AppButton
+            title={isConsentUpdating ? "Revoking..." : "Revoke consent"}
+            variant="ghost"
+            onPress={() => void onRevokeConsent()}
+            disabled={isConsentLoading || isConsentUpdating}
+          />
+        </View>
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Start import (MVP)</Text>
-        <TextInput style={styles.input} placeholder="From" value={fromEmail} onChangeText={setFromEmail} />
-        <TextInput style={styles.input} placeholder="Subject" value={subject} onChangeText={setSubject} />
+        <TextInput
+          style={styles.input}
+          placeholder="From"
+          placeholderTextColor={colors.textMuted}
+          value={fromEmail}
+          onChangeText={setFromEmail}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Subject"
+          placeholderTextColor={colors.textMuted}
+          value={subject}
+          onChangeText={setSubject}
+        />
         <TextInput
           style={[styles.input, styles.textArea]}
           multiline
           placeholder="Email body"
+          placeholderTextColor={colors.textMuted}
           value={message}
           onChangeText={setMessage}
         />
-        <Button
+        <AppButton
           disabled={!canSubmit || isSubmitting}
+          fullWidth
           title={isSubmitting ? "Starting..." : "Start import"}
           onPress={() => void onStartImport()}
         />
@@ -114,11 +202,11 @@ const ImportScreen = () => {
         {history.length === 0 ? <Text>No import jobs.</Text> : null}
         {history.map((item) => (
           <View key={item.id} style={styles.card}>
-            <Text>#{item.id}</Text>
-            <Text>
+            <Text style={styles.itemTitle}>#{item.id}</Text>
+            <Text style={styles.meta}>
               {item.provider} | {item.status}
             </Text>
-            <Button title="Details" onPress={() => void onLoadDetails(item.id)} />
+            <AppButton title="Details" variant="ghost" onPress={() => void onLoadDetails(item.id)} />
           </View>
         ))}
       </View>
@@ -126,13 +214,13 @@ const ImportScreen = () => {
       {details ? (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Details #{details.jobId}</Text>
-          <Text>Status: {details.status}</Text>
-          <Text>
+          <Text style={styles.meta}>Status: {details.status}</Text>
+          <Text style={styles.meta}>
             Processed: {details.processed}, Created: {details.created}, Skipped: {details.skipped}, Errors: {details.errors}
           </Text>
           {details.errorItems.length > 0 ? <Text style={styles.sectionTitle}>Errors</Text> : null}
           {details.errorItems.map((item) => (
-            <Text key={`${item.externalId}-${item.reason}`}>
+            <Text key={`${item.externalId}-${item.reason}`} style={styles.meta}>
               {item.externalId}: {item.reason}
             </Text>
           ))}
@@ -142,27 +230,40 @@ const ImportScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) =>
+  StyleSheet.create({
   container: {
     padding: 16,
-    gap: 12
+    gap: 14,
+    backgroundColor: colors.bg
   },
   title: {
-    fontSize: 24,
-    fontWeight: "700"
+    fontSize: 30,
+    fontWeight: "900",
+    color: colors.text
   },
   section: {
-    gap: 8
+    gap: 8,
+    backgroundColor: colors.bgElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    padding: 16
   },
   sectionTitle: {
-    fontWeight: "700"
+    color: colors.text,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.6
   },
   input: {
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
+    borderColor: colors.border,
+    backgroundColor: colors.bgSoft,
+    color: colors.text,
+    borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 8
+    paddingVertical: 10
   },
   textArea: {
     minHeight: 100,
@@ -170,13 +271,25 @@ const styles = StyleSheet.create({
   },
   card: {
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 8,
-    padding: 10,
+    borderColor: colors.border,
+    backgroundColor: colors.bgElevated,
+    borderRadius: 14,
+    padding: 12,
     gap: 6
   },
+  actions: {
+    flexDirection: "row",
+    gap: 8
+  },
   error: {
-    color: "#b91c1c"
+    color: colors.danger
+  },
+  meta: {
+    color: colors.textMuted
+  },
+  itemTitle: {
+    color: colors.text,
+    fontWeight: "800"
   }
 });
 
