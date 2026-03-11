@@ -25,3 +25,4 @@ Contract guard checks and baseline policy: `docs/api-notes/contract-guard.md`.
 ## Other authenticated endpoints
 - Integrations: `GET /api/v1/integrations`.
 - Recommendations: `GET /api/v1/recommendations?category=<category>`.
+  - Returns catalog-backed alternatives from `recommendation_catalog` (seeded by backend migrations).
