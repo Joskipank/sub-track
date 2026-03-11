@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useLanguage } from "../i18n/LanguageProvider";
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
+  const { t } = useLanguage();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -31,16 +33,14 @@ const LoginPage = () => {
   return (
     <div className="auth-page">
       <div className="auth-page__header">
-        <p className="auth-page__eyebrow">Вход</p>
-        <h1 className="auth-page__title">Войти в аккаунт</h1>
-        <p className="auth-page__subtitle">
-          Управляйте подписками, ближайшими списаниями и напоминаниями из одного места.
-        </p>
+        <p className="auth-page__eyebrow">{t("auth_login_eyebrow")}</p>
+        <h1 className="auth-page__title">{t("auth_login_title")}</h1>
+        <p className="auth-page__subtitle">{t("auth_login_subtitle")}</p>
       </div>
 
       <form className="auth-form" onSubmit={handleSubmit}>
         <label className="auth-form__field">
-          <span>Email</span>
+          <span>{t("auth_email")}</span>
           <input
             className="input"
             type="email"
@@ -52,11 +52,11 @@ const LoginPage = () => {
           />
         </label>
         <label className="auth-form__field">
-          <span>Пароль</span>
+          <span>{t("auth_password")}</span>
           <input
             className="input"
             type="password"
-            placeholder="Введите пароль"
+            placeholder={t("auth_password")}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             autoComplete="current-password"
@@ -65,14 +65,14 @@ const LoginPage = () => {
         </label>
         {error ? <p className="form-message form-message--error">{error}</p> : null}
         <button type="submit" className="button" disabled={isSubmitting}>
-          {isSubmitting ? "Входим..." : "Войти"}
+          {isSubmitting ? t("auth_login_loading") : t("auth_login_button")}
         </button>
       </form>
 
       <div className="auth-page__footer">
-        <span>Нет аккаунта?</span>
+        <span>{t("auth_login_no_account")}</span>
         <Link to="/register" className="auth-page__link">
-          Зарегистрироваться
+          {t("auth_login_register")}
         </Link>
       </div>
     </div>

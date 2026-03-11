@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useLanguage } from "../i18n/LanguageProvider";
 
 const RegisterPage = () => {
   const navigate = useNavigate();
   const { register } = useAuth();
+  const { t } = useLanguage();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -40,16 +42,14 @@ const RegisterPage = () => {
   return (
     <div className="auth-page">
       <div className="auth-page__header">
-        <p className="auth-page__eyebrow">Регистрация</p>
-        <h1 className="auth-page__title">Создать аккаунт</h1>
-        <p className="auth-page__subtitle">
-          Подготовьте рабочее пространство для отслеживания расходов и аналитики по подпискам.
-        </p>
+        <p className="auth-page__eyebrow">{t("auth_register_eyebrow")}</p>
+        <h1 className="auth-page__title">{t("auth_register_title")}</h1>
+        <p className="auth-page__subtitle">{t("auth_register_subtitle")}</p>
       </div>
 
       <form className="auth-form" onSubmit={handleSubmit}>
         <label className="auth-form__field">
-          <span>Email</span>
+          <span>{t("auth_email")}</span>
           <input
             className="input"
             type="email"
@@ -61,7 +61,7 @@ const RegisterPage = () => {
           />
         </label>
         <label className="auth-form__field">
-          <span>Пароль</span>
+          <span>{t("auth_password")}</span>
           <input
             className="input"
             type="password"
@@ -73,7 +73,7 @@ const RegisterPage = () => {
           />
         </label>
         <label className="auth-form__field">
-          <span>Подтверждение пароля</span>
+          <span>{t("auth_confirm_password")}</span>
           <input
             className="input"
             type="password"
@@ -86,14 +86,14 @@ const RegisterPage = () => {
         </label>
         {error ? <p className="form-message form-message--error">{error}</p> : null}
         <button type="submit" className="button" disabled={isSubmitting}>
-          {isSubmitting ? "Создаем..." : "Создать аккаунт"}
+          {isSubmitting ? t("auth_register_loading") : t("auth_register_button")}
         </button>
       </form>
 
       <div className="auth-page__footer">
-        <span>Уже есть аккаунт?</span>
+        <span>{t("auth_register_has_account")}</span>
         <Link to="/login" className="auth-page__link">
-          Войти
+          {t("auth_register_login")}
         </Link>
       </div>
     </div>
