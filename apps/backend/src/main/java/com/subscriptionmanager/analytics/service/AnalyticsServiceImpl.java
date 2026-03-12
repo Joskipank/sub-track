@@ -5,18 +5,26 @@ import com.subscriptionmanager.analytics.dto.AnalyticsByCategoryResponse;
 import com.subscriptionmanager.analytics.dto.AnalyticsCategoryItemResponse;
 import com.subscriptionmanager.analytics.dto.AnalyticsForecastResponse;
 import com.subscriptionmanager.analytics.dto.AnalyticsSummaryResponse;
+import com.subscriptionmanager.analytics.dto.AnalyticsUsageItemResponse;
+import com.subscriptionmanager.analytics.dto.AnalyticsUsageResponse;
 import com.subscriptionmanager.common.enums.BillingPeriod;
 import com.subscriptionmanager.common.enums.SubscriptionStatus;
 import com.subscriptionmanager.entity.Subscription;
+import com.subscriptionmanager.entity.UsageSignal;
+import com.subscriptionmanager.exception.ApiException;
 import com.subscriptionmanager.repository.SubscriptionRepository;
+import com.subscriptionmanager.repository.UsageSignalRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.RoundingMode;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -30,11 +38,17 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
     private static final String MIXED_CURRENCY = "MIXED";
     private static final String UNCATEGORIZED = "Uncategorized";
+    private static final ZoneOffset ANALYTICS_ZONE_OFFSET = ZoneOffset.UTC;
 
     private final SubscriptionRepository subscriptionRepository;
+    private final UsageSignalRepository usageSignalRepository;
 
-    public AnalyticsServiceImpl(SubscriptionRepository subscriptionRepository) {
+    public AnalyticsServiceImpl(
+            SubscriptionRepository subscriptionRepository,
+            UsageSignalRepository usageSignalRepository
+    ) {
         this.subscriptionRepository = subscriptionRepository;
+        this.usageSignalRepository = usageSignalRepository;
     }
 
     @Override
@@ -114,6 +128,94 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 totalAmount(monthSpends),
                 totalAmount(yearSpends),
                 resolveCurrency(yearSpends)
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AnalyticsUsageResponse usage(Long userId, AnalyticsPeriod period, Long subscriptionId) {
+        LocalDate today = LocalDate.now();
+        LocalDate from = period.rangeStart(today);
+        LocalDate to = period.rangeEnd(today);
+
+        List<Subscription> activeSubscriptions =
+                subscriptionRepository.findByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE);
+        List<Subscription> subscriptionsInScope = activeSubscriptions;
+
+        if (subscriptionId != null) {
+            validateSubscriptionId(subscriptionId);
+            subscriptionRepository.findByIdAndUserId(subscriptionId, userId)
+                    .orElseThrow(() -> new ApiException("Subscription not found"));
+            subscriptionsInScope = activeSubscriptions.stream()
+                    .filter(subscription -> subscriptionId.equals(subscription.getId()))
+                    .toList();
+        }
+
+        OffsetDateTime fromDateTime = rangeStartDateTime(from);
+        OffsetDateTime toDateTime = rangeEndDateTime(to);
+
+        List<UsageSignal> usageSignals = subscriptionId == null
+                ? usageSignalRepository.findByUserIdAndCreatedAtBetween(userId, fromDateTime, toDateTime)
+                : usageSignalRepository.findByUserIdAndSubscriptionIdAndCreatedAtBetween(
+                        userId,
+                        subscriptionId,
+                        fromDateTime,
+                        toDateTime
+                );
+
+        Set<Long> activeSubscriptionIdsInScope = subscriptionsInScope.stream()
+                .map(Subscription::getId)
+                .collect(Collectors.toSet());
+
+        List<UsageSignal> scopedSignals = usageSignals.stream()
+                .filter(signal -> activeSubscriptionIdsInScope.contains(signal.getSubscription().getId()))
+                .toList();
+
+        Map<Long, Long> signalsCountBySubscription = new HashMap<>();
+        Map<Long, OffsetDateTime> lastSignalAtBySubscription = new HashMap<>();
+
+        for (UsageSignal signal : scopedSignals) {
+            Long signalSubscriptionId = signal.getSubscription().getId();
+            signalsCountBySubscription.merge(signalSubscriptionId, 1L, Long::sum);
+
+            OffsetDateTime previousLast = lastSignalAtBySubscription.get(signalSubscriptionId);
+            if (previousLast == null || signal.getCreatedAt().isAfter(previousLast)) {
+                lastSignalAtBySubscription.put(signalSubscriptionId, signal.getCreatedAt());
+            }
+        }
+
+        List<AnalyticsUsageItemResponse> items = subscriptionsInScope.stream()
+                .map(subscription -> {
+                    long signalsCount = signalsCountBySubscription.getOrDefault(subscription.getId(), 0L);
+                    OffsetDateTime lastSignalAt = lastSignalAtBySubscription.get(subscription.getId());
+
+                    return new AnalyticsUsageItemResponse(
+                            subscription.getId(),
+                            subscription.getServiceName(),
+                            resolveCategory(subscription),
+                            signalsCount,
+                            lastSignalAt == null ? null : lastSignalAt.toString()
+                    );
+                })
+                .sorted(Comparator.comparingLong(AnalyticsUsageItemResponse::signalsCount)
+                        .reversed()
+                        .thenComparing(item -> item.serviceName() == null ? "" : item.serviceName()))
+                .toList();
+
+        long totalSignals = scopedSignals.size();
+        long activeSubscriptionsCount = subscriptionsInScope.size();
+        long subscriptionsWithSignals = items.stream()
+                .filter(item -> item.signalsCount() > 0)
+                .count();
+
+        return new AnalyticsUsageResponse(
+                period.apiValue(),
+                from,
+                to,
+                totalSignals,
+                activeSubscriptionsCount,
+                subscriptionsWithSignals,
+                items
         );
     }
 
@@ -203,6 +305,23 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         }
 
         return subscription.getCategory().getName();
+    }
+
+    private void validateSubscriptionId(Long subscriptionId) {
+        if (subscriptionId <= 0) {
+            throw new ApiException("subscriptionId must be greater than 0");
+        }
+    }
+
+    private OffsetDateTime rangeStartDateTime(LocalDate from) {
+        return from.atStartOfDay().atOffset(ANALYTICS_ZONE_OFFSET);
+    }
+
+    private OffsetDateTime rangeEndDateTime(LocalDate to) {
+        return to.plusDays(1)
+                .atStartOfDay()
+                .atOffset(ANALYTICS_ZONE_OFFSET)
+                .minusNanos(1);
     }
 
     private record SubscriptionSpend(Subscription subscription, BigDecimal amount) {

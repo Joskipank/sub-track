@@ -16,6 +16,11 @@ Contract guard checks and baseline policy: `docs/api-notes/contract-guard.md`.
 - Compatibility alias: `GET /api/v1/forecast` (deprecated).
 - `months` query parameter on `/api/v1/forecast` is deprecated and ignored.
 
+## Usage analytics endpoint
+- `GET /api/v1/analytics/usage?period=<month|year>&subscriptionId=<optional-id>`.
+- Aggregates usage signals by active subscriptions for selected period.
+- `subscriptionId` must belong to current user; invalid ownership returns `400` with `{"message":"Subscription not found"}`.
+
 ## Import consent endpoints
 - Check status: `GET /api/v1/consents/imports/GMAIL`.
 - Grant consent: `POST /api/v1/consents/imports/GMAIL/grant`.

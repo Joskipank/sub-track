@@ -6,6 +6,7 @@ import com.subscriptionmanager.common.enums.SubscriptionStatus;
 import com.subscriptionmanager.entity.Subscription;
 import com.subscriptionmanager.forecast.dto.ForecastResponse;
 import com.subscriptionmanager.repository.SubscriptionRepository;
+import com.subscriptionmanager.repository.UsageSignalRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -24,9 +25,12 @@ class ForecastServiceImplTest {
     @Mock
     private SubscriptionRepository subscriptionRepository;
 
+    @Mock
+    private UsageSignalRepository usageSignalRepository;
+
     @Test
     void forecastUsesAnalyticsCalculationAndReturnsNonZeroValues() {
-        AnalyticsServiceImpl analyticsService = new AnalyticsServiceImpl(subscriptionRepository);
+        AnalyticsServiceImpl analyticsService = new AnalyticsServiceImpl(subscriptionRepository, usageSignalRepository);
         ForecastServiceImpl forecastService = new ForecastServiceImpl(analyticsService);
 
         LocalDate yearStart = LocalDate.now().withDayOfYear(1);
@@ -49,7 +53,7 @@ class ForecastServiceImplTest {
 
     @Test
     void forecastIsConsistentForAnyMonthsParameter() {
-        AnalyticsServiceImpl analyticsService = new AnalyticsServiceImpl(subscriptionRepository);
+        AnalyticsServiceImpl analyticsService = new AnalyticsServiceImpl(subscriptionRepository, usageSignalRepository);
         ForecastServiceImpl forecastService = new ForecastServiceImpl(analyticsService);
 
         LocalDate yearStart = LocalDate.now().withDayOfYear(1);

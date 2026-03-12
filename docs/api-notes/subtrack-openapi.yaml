@@ -344,6 +344,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnalyticsForecastResponse'
+  /api/v1/analytics/usage:
+    get:
+      tags: [analytics]
+      parameters:
+        - in: query
+          name: period
+          required: true
+          schema:
+            type: string
+            enum: [month, year]
+        - in: query
+          name: subscriptionId
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Usage analytics by active subscriptions for period
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsUsageResponse'
+        '400':
+          description: Invalid period or subscriptionId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
   /api/v1/forecast:
     get:
       tags: [forecast]
@@ -888,6 +918,48 @@ components:
           format: double
         currency:
           type: string
+          nullable: true
+    AnalyticsUsageResponse:
+      type: object
+      properties:
+        period:
+          type: string
+          enum: [month, year]
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        totalSignals:
+          type: integer
+          format: int64
+        activeSubscriptions:
+          type: integer
+          format: int64
+        subscriptionsWithSignals:
+          type: integer
+          format: int64
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalyticsUsageItemResponse'
+    AnalyticsUsageItemResponse:
+      type: object
+      properties:
+        subscriptionId:
+          type: integer
+          format: int64
+        serviceName:
+          type: string
+        category:
+          type: string
+        signalsCount:
+          type: integer
+          format: int64
+        lastSignalAt:
+          type: string
+          format: date-time
           nullable: true
     ForecastResponse:
       type: object
