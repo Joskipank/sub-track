@@ -31,7 +31,7 @@ const RegisterPage = () => {
 
     try {
       await register({ email, password });
-      navigate("/", { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Не удалось создать аккаунт");
     } finally {
