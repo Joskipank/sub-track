@@ -1,13 +1,20 @@
-﻿import React from "react";
+import React from "react";
 import ReactDOM from "react-dom/client";
+import { Provider } from "react-redux";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
+import { LanguageProvider } from "./i18n/LanguageProvider";
+import { store } from "./store";
+import "./styles.css";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <Provider store={store}>
+      <LanguageProvider>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </LanguageProvider>
+    </Provider>
   </React.StrictMode>
 );
-
