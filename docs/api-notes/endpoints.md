@@ -16,11 +16,27 @@ Contract guard checks and baseline policy: `docs/api-notes/contract-guard.md`.
 - Compatibility alias: `GET /api/v1/forecast` (deprecated).
 - `months` query parameter on `/api/v1/forecast` is deprecated and ignored.
 
+## Notification endpoint
+- Existing endpoint is unchanged: `GET /api/v1/notifications?days=<1..365>`.
+- Response shape is unchanged (`id`, `type`, `message`, `scheduledAt`, `status`).
+- Supported `type` values: `UPCOMING_CHARGE`, `PRICE_CHANGE`, `INACTIVITY`.
+- `UPCOMING_CHARGE` reminder flow (1-3 days) remains active.
+
+## Usage analytics endpoint
+- `GET /api/v1/analytics/usage?period=<month|year>&subscriptionId=<optional-id>`.
+- Aggregates usage signals by active subscriptions for selected period.
+- `subscriptionId` must belong to current user; invalid ownership returns `400` with `{"message":"Subscription not found"}`.
+
 ## Import consent endpoints
 - Check status: `GET /api/v1/consents/imports/GMAIL`.
 - Grant consent: `POST /api/v1/consents/imports/GMAIL/grant`.
 - Revoke consent: `POST /api/v1/consents/imports/GMAIL/revoke`.
 - Import endpoint `POST /api/v1/imports/start` requires active consent and returns `403 IMPORT_CONSENT_REQUIRED` when missing.
+
+## Usage signal endpoints
+- Create usage signal: `POST /api/v1/usage-signals`.
+- List usage signals: `GET /api/v1/usage-signals?subscriptionId=<id>` (optional filter).
+- Signals are user-scoped: subscription must exist and belong to current user, otherwise `400` with `{"message":"Subscription not found"}`.
 
 ## Other authenticated endpoints
 - Integrations: `GET /api/v1/integrations`.

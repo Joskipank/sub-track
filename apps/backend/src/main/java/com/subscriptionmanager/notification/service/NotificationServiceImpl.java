@@ -31,10 +31,16 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final SmartNotificationService smartNotificationService;
 
-    public NotificationServiceImpl(NotificationRepository notificationRepository, SubscriptionRepository subscriptionRepository) {
+    public NotificationServiceImpl(
+            NotificationRepository notificationRepository,
+            SubscriptionRepository subscriptionRepository,
+            SmartNotificationService smartNotificationService
+    ) {
         this.notificationRepository = notificationRepository;
         this.subscriptionRepository = subscriptionRepository;
+        this.smartNotificationService = smartNotificationService;
     }
 
     @Override
@@ -42,6 +48,7 @@ public class NotificationServiceImpl implements NotificationService {
     public List<NotificationResponse> list(Long userId, int days) {
         validateDays(days);
         ensureUpcomingChargeNotifications(userId);
+        smartNotificationService.generateSmartNotificationsForUser(userId);
 
         LocalDate today = LocalDate.now();
         OffsetDateTime from = today.atStartOfDay().atOffset(DEFAULT_OFFSET);

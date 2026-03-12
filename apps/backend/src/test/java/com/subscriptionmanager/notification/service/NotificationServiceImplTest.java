@@ -39,9 +39,16 @@ class NotificationServiceImplTest {
     @Mock
     private SubscriptionRepository subscriptionRepository;
 
+    @Mock
+    private SmartNotificationService smartNotificationService;
+
     @Test
     void listCreatesUpcomingReminderForDueSoonSubscription() {
-        NotificationServiceImpl service = new NotificationServiceImpl(notificationRepository, subscriptionRepository);
+        NotificationServiceImpl service = new NotificationServiceImpl(
+                notificationRepository,
+                subscriptionRepository,
+                smartNotificationService
+        );
 
         LocalDate today = LocalDate.now();
         Subscription subscription = new Subscription();
@@ -91,13 +98,21 @@ class NotificationServiceImplTest {
 
     @Test
     void listThrowsForInvalidDays() {
-        NotificationServiceImpl service = new NotificationServiceImpl(notificationRepository, subscriptionRepository);
+        NotificationServiceImpl service = new NotificationServiceImpl(
+                notificationRepository,
+                subscriptionRepository,
+                smartNotificationService
+        );
         assertThrows(ApiException.class, () -> service.list(1L, 0));
     }
 
     @Test
     void repeatedListCallDoesNotCreateDuplicateReminder() {
-        NotificationServiceImpl service = new NotificationServiceImpl(notificationRepository, subscriptionRepository);
+        NotificationServiceImpl service = new NotificationServiceImpl(
+                notificationRepository,
+                subscriptionRepository,
+                smartNotificationService
+        );
 
         LocalDate today = LocalDate.now();
         Subscription subscription = new Subscription();
@@ -139,5 +154,32 @@ class NotificationServiceImplTest {
         service.list(1L, 7);
 
         verify(notificationRepository, times(1)).save(any(Notification.class));
+    }
+
+    @Test
+    void listTriggersSmartNotificationGenerationForCurrentUser() {
+        NotificationServiceImpl service = new NotificationServiceImpl(
+                notificationRepository,
+                subscriptionRepository,
+                smartNotificationService
+        );
+
+        LocalDate today = LocalDate.now();
+        when(subscriptionRepository.findByUserIdAndStatusAndNextBillingDateBetweenOrderByNextBillingDateAsc(
+                1L,
+                SubscriptionStatus.ACTIVE,
+                today.plusDays(1),
+                today.plusDays(3)
+        )).thenReturn(List.of());
+
+        when(notificationRepository.findByUserIdAndScheduledAtBetweenOrderByScheduledAtAsc(
+                eq(1L),
+                any(OffsetDateTime.class),
+                any(OffsetDateTime.class)
+        )).thenReturn(List.of());
+
+        service.list(1L, 7);
+
+        verify(smartNotificationService).generateSmartNotificationsForUser(1L);
     }
 }

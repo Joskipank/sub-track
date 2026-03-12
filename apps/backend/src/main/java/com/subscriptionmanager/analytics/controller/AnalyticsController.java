@@ -4,6 +4,7 @@ import com.subscriptionmanager.analytics.AnalyticsPeriod;
 import com.subscriptionmanager.analytics.dto.AnalyticsByCategoryResponse;
 import com.subscriptionmanager.analytics.dto.AnalyticsForecastResponse;
 import com.subscriptionmanager.analytics.dto.AnalyticsSummaryResponse;
+import com.subscriptionmanager.analytics.dto.AnalyticsUsageResponse;
 import com.subscriptionmanager.analytics.service.AnalyticsService;
 import com.subscriptionmanager.security.CurrentUserService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -39,5 +40,14 @@ public class AnalyticsController {
     public AnalyticsForecastResponse forecast() {
         Long userId = currentUserService.requireCurrentUserId();
         return analyticsService.forecast(userId);
+    }
+
+    @GetMapping("/usage")
+    public AnalyticsUsageResponse usage(
+            @RequestParam String period,
+            @RequestParam(required = false) Long subscriptionId
+    ) {
+        Long userId = currentUserService.requireCurrentUserId();
+        return analyticsService.usage(userId, AnalyticsPeriod.from(period), subscriptionId);
     }
 }

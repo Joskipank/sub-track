@@ -12,7 +12,11 @@ import java.util.Optional;
 
 public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
     List<Subscription> findByUserIdOrderByNextBillingDateAsc(Long userId);
+
     List<Subscription> findByUserIdAndStatus(Long userId, SubscriptionStatus status);
+
+    List<Subscription> findByStatus(SubscriptionStatus status);
+
     boolean existsByUserIdAndServiceNameIgnoreCaseAndAmountAndCurrencyAndBillingPeriodAndNextBillingDateAndStatus(
             Long userId,
             String serviceName,
@@ -28,5 +32,6 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
             LocalDate from,
             LocalDate to
     );
+
     Optional<Subscription> findByIdAndUserId(Long id, Long userId);
 }

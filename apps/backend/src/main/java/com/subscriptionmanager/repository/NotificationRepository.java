@@ -9,12 +9,28 @@ import java.util.List;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
     List<Notification> findByUserIdOrderByScheduledAtDesc(Long userId);
+
     List<Notification> findByUserIdAndScheduledAtBetweenOrderByScheduledAtAsc(
             Long userId,
             OffsetDateTime from,
             OffsetDateTime to
     );
+
     boolean existsByUserIdAndSubscriptionIdAndTypeAndScheduledAt(
+            Long userId,
+            Long subscriptionId,
+            NotificationType type,
+            OffsetDateTime scheduledAt
+    );
+
+    boolean existsByUserIdAndSubscriptionIdAndTypeAndMessage(
+            Long userId,
+            Long subscriptionId,
+            NotificationType type,
+            String message
+    );
+
+    boolean existsByUserIdAndSubscriptionIdAndTypeAndScheduledAtGreaterThanEqual(
             Long userId,
             Long subscriptionId,
             NotificationType type,
