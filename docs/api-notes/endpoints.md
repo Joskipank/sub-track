@@ -16,6 +16,12 @@ Contract guard checks and baseline policy: `docs/api-notes/contract-guard.md`.
 - Compatibility alias: `GET /api/v1/forecast` (deprecated).
 - `months` query parameter on `/api/v1/forecast` is deprecated and ignored.
 
+## Notification endpoint
+- Existing endpoint is unchanged: `GET /api/v1/notifications?days=<1..365>`.
+- Response shape is unchanged (`id`, `type`, `message`, `scheduledAt`, `status`).
+- Supported `type` values: `UPCOMING_CHARGE`, `PRICE_CHANGE`, `INACTIVITY`.
+- `UPCOMING_CHARGE` reminder flow (1-3 days) remains active.
+
 ## Usage analytics endpoint
 - `GET /api/v1/analytics/usage?period=<month|year>&subscriptionId=<optional-id>`.
 - Aggregates usage signals by active subscriptions for selected period.

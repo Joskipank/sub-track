@@ -240,7 +240,7 @@ paths:
             default: 7
       responses:
         '200':
-          description: Notifications for window today..today+days
+          description: Notifications for window today..today+days (UPCOMING_CHARGE, PRICE_CHANGE, INACTIVITY)
           content:
             application/json:
               schema:
@@ -812,6 +812,7 @@ components:
           format: int64
         type:
           type: string
+          enum: [UPCOMING_CHARGE, PRICE_CHANGE, INACTIVITY]
         message:
           type: string
         scheduledAt:

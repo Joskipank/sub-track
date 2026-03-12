@@ -1,12 +1,15 @@
 package com.subscriptionmanager.subscription.service;
 
 import com.subscriptionmanager.common.enums.SourceType;
+import com.subscriptionmanager.common.enums.NotificationType;
 import com.subscriptionmanager.common.enums.SubscriptionStatus;
 import com.subscriptionmanager.entity.Category;
 import com.subscriptionmanager.entity.Subscription;
+import com.subscriptionmanager.entity.SubscriptionEvent;
 import com.subscriptionmanager.entity.User;
 import com.subscriptionmanager.exception.ApiException;
 import com.subscriptionmanager.repository.CategoryRepository;
+import com.subscriptionmanager.repository.SubscriptionEventRepository;
 import com.subscriptionmanager.repository.SubscriptionRepository;
 import com.subscriptionmanager.repository.UserRepository;
 import com.subscriptionmanager.subscription.dto.SubscriptionRequest;
@@ -19,24 +22,29 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 import java.util.List;
+import java.math.BigDecimal;
 
 @Service
 public class SubscriptionServiceImpl implements SubscriptionService {
     private static final int MIN_DAYS = 1;
     private static final int MAX_DAYS = 365;
+    private static final String PRICE_CHANGE_EVENT_TYPE = NotificationType.PRICE_CHANGE.name();
 
     private final SubscriptionRepository subscriptionRepository;
     private final CategoryRepository categoryRepository;
     private final UserRepository userRepository;
+    private final SubscriptionEventRepository subscriptionEventRepository;
 
     public SubscriptionServiceImpl(
             SubscriptionRepository subscriptionRepository,
             CategoryRepository categoryRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            SubscriptionEventRepository subscriptionEventRepository
     ) {
         this.subscriptionRepository = subscriptionRepository;
         this.categoryRepository = categoryRepository;
         this.userRepository = userRepository;
+        this.subscriptionEventRepository = subscriptionEventRepository;
     }
 
     @Override
@@ -96,8 +104,10 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         Subscription subscription = subscriptionRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ApiException("Subscription not found"));
 
+        BigDecimal oldAmount = subscription.getAmount();
         applyRequest(subscription, request);
         Subscription saved = subscriptionRepository.save(subscription);
+        savePriceChangeEventIfNeeded(saved, oldAmount);
         return toResponse(saved);
     }
 
@@ -162,5 +172,19 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         if (days < MIN_DAYS || days > MAX_DAYS) {
             throw new ApiException("days must be between 1 and 365");
         }
+    }
+
+    private void savePriceChangeEventIfNeeded(Subscription subscription, BigDecimal oldAmount) {
+        BigDecimal newAmount = subscription.getAmount();
+        if (oldAmount == null || newAmount == null || oldAmount.compareTo(newAmount) == 0) {
+            return;
+        }
+
+        SubscriptionEvent event = new SubscriptionEvent();
+        event.setSubscription(subscription);
+        event.setEventType(PRICE_CHANGE_EVENT_TYPE);
+        event.setOldAmount(oldAmount);
+        event.setNewAmount(newAmount);
+        subscriptionEventRepository.save(event);
     }
 }
