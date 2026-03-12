@@ -247,6 +247,55 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/NotificationResponse'
+  /api/v1/usage-signals:
+    post:
+      tags: [usage-signals]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UsageSignalCreateRequest'
+      responses:
+        '200':
+          description: Created usage signal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageSignalResponse'
+        '400':
+          description: Validation or business error
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ApiErrorResponse'
+                  - $ref: '#/components/schemas/ValidationErrorResponse'
+    get:
+      tags: [usage-signals]
+      parameters:
+        - in: query
+          name: subscriptionId
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Usage signals for current user ordered by createdAt desc
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UsageSignalResponse'
+        '400':
+          description: Subscription not found or not owned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
   /api/v1/analytics/summary:
     get:
       tags: [analytics]
@@ -739,6 +788,38 @@ components:
           type: string
         status:
           type: string
+    UsageSignalCreateRequest:
+      type: object
+      required: [subscriptionId, signalType, value]
+      properties:
+        subscriptionId:
+          type: integer
+          format: int64
+          minimum: 1
+        signalType:
+          type: string
+          minLength: 1
+          maxLength: 50
+        value:
+          type: string
+          minLength: 1
+          maxLength: 255
+    UsageSignalResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        subscriptionId:
+          type: integer
+          format: int64
+        signalType:
+          type: string
+        value:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
     AnalyticsSummaryResponse:
       type: object
       properties:
