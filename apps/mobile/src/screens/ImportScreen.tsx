@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+
 import { consentApi, type ImportConsentStatus } from "../api/consentApi";
 import { ApiError } from "../api/httpClient";
 import { importApi } from "../api/importApi";
@@ -8,22 +10,47 @@ import { useI18n } from "../context/SettingsContext";
 import AppButton from "../components/AppButton";
 import type { AppPalette } from "../theme/theme";
 
+const IMPORT_PROVIDER = "GMAIL";
+
+type ImportConsentErrorPayload = {
+  code?: string;
+  provider?: string;
+  message?: string;
+};
+
+const getImportConsentError = (error: ApiError): ImportConsentErrorPayload | null => {
+  const details = error.details as ImportConsentErrorPayload | undefined;
+  if (error.status === 403 && details?.code === "IMPORT_CONSENT_REQUIRED") {
+    return details;
+  }
+
+  return null;
+};
+
 const ImportScreen = () => {
   const { colors } = useI18n();
   const styles = createStyles(colors);
   const [history, setHistory] = useState<ImportHistoryItem[]>([]);
   const [details, setDetails] = useState<ImportResult | null>(null);
+
   const [consent, setConsent] = useState<ImportConsentStatus | null>(null);
   const [isConsentLoading, setIsConsentLoading] = useState(true);
   const [isConsentUpdating, setIsConsentUpdating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isConsentLoading, setIsConsentLoading] = useState(true);
+  const [isConsentUpdating, setIsConsentUpdating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [subject, setSubject] = useState("Subscription renewal");
   const [fromEmail, setFromEmail] = useState("billing@example.com");
+  const [pendingRetryPayload, setPendingRetryPayload] = useState<MailMessageRequest | null>(null);
 
-  const canSubmit = useMemo(() => Boolean(message.trim() && subject.trim() && fromEmail.trim()), [message, subject, fromEmail]);
+  const hasGrantedConsent = consentStatus?.status === "GRANTED";
+  const canSubmit = useMemo(
+    () => Boolean(message.trim() && subject.trim() && fromEmail.trim() && hasGrantedConsent),
+    [fromEmail, hasGrantedConsent, message, subject]
+  );
 
   const loadHistory = useCallback(async () => {
     try {
@@ -44,9 +71,89 @@ const ImportScreen = () => {
     }
   }, []);
 
+  const loadConsentStatus = useCallback(async () => {
+    try {
+      setIsConsentLoading(true);
+      const status = await consentApi.getImportConsentStatus(IMPORT_PROVIDER);
+      setConsentStatus(status);
+    } catch (consentError) {
+      setError(consentError instanceof Error ? consentError.message : "Failed to load import consent status.");
+    } finally {
+      setIsConsentLoading(false);
+    }
+  }, []);
+
+  const runImport = useCallback(
+    async (payload: MailMessageRequest) => {
+      const result = await importApi.start({
+        provider: IMPORT_PROVIDER,
+        messages: [payload]
+      });
+      setDetails(result);
+      setPendingRetryPayload(null);
+      await loadHistory();
+    },
+    [loadHistory]
+  );
+
+  const onGrantConsent = useCallback(async () => {
+    try {
+      setError(null);
+      setIsConsentUpdating(true);
+      const status = await consentApi.grantImportConsent(IMPORT_PROVIDER);
+      setConsentStatus(status);
+    } catch (grantError) {
+      setError(grantError instanceof Error ? grantError.message : "Failed to grant import consent.");
+    } finally {
+      setIsConsentUpdating(false);
+    }
+  }, []);
+
+  const onRevokeConsent = useCallback(async () => {
+    try {
+      setError(null);
+      setIsConsentUpdating(true);
+      const status = await consentApi.revokeImportConsent(IMPORT_PROVIDER);
+      setConsentStatus(status);
+      setPendingRetryPayload(null);
+    } catch (revokeError) {
+      setError(revokeError instanceof Error ? revokeError.message : "Failed to revoke import consent.");
+    } finally {
+      setIsConsentUpdating(false);
+    }
+  }, []);
+
+  const handleImportError = useCallback((startError: unknown, payload: MailMessageRequest) => {
+    if (startError instanceof ApiError) {
+      const consentError = getImportConsentError(startError);
+      if (consentError) {
+        setPendingRetryPayload(payload);
+        setConsentStatus((prev) => ({
+          provider: IMPORT_PROVIDER,
+          status: "NOT_GRANTED",
+          scope: prev?.scope,
+          grantedAt: prev?.grantedAt ?? null,
+          revokedAt: prev?.revokedAt ?? null,
+          integrationStatus: prev?.integrationStatus
+        }));
+        setError(consentError.message ?? "Import consent is required before import for provider GMAIL.");
+        return;
+      }
+    }
+
+    setError(
+      startError instanceof ApiError && startError.status === 400
+        ? "Import payload validation failed."
+        : startError instanceof Error
+          ? startError.message
+          : "Failed to start import."
+    );
+  }, []);
+
   useEffect(() => {
     void loadHistory();
-  }, [loadHistory]);
+    void loadConsentStatus();
+  }, [loadConsentStatus, loadHistory]);
 
   const loadConsent = useCallback(async () => {
     try {
@@ -65,6 +172,19 @@ const ImportScreen = () => {
   }, [loadConsent]);
 
   const onStartImport = async () => {
+    if (!hasGrantedConsent) {
+      setError("Import consent is required before import. Tap \"Grant consent\" to continue.");
+      return;
+    }
+
+    const payload: MailMessageRequest = {
+      externalId: `manual-${Date.now()}`,
+      from: fromEmail.trim(),
+      subject: subject.trim(),
+      body: message.trim(),
+      receivedAt: new Date().toISOString()
+    };
+
     try {
       if (consent?.status !== "GRANTED") {
         setError("Grant consent before import.");
@@ -72,28 +192,31 @@ const ImportScreen = () => {
       }
       setError(null);
       setIsSubmitting(true);
-      const payload: MailMessageRequest = {
-        externalId: `manual-${Date.now()}`,
-        from: fromEmail.trim(),
-        subject: subject.trim(),
-        body: message.trim(),
-        receivedAt: new Date().toISOString()
-      };
-      const result = await importApi.start({
-        provider: "GMAIL",
-        messages: [payload]
-      });
-      setDetails(result);
-      await loadHistory();
+      await runImport(payload);
     } catch (startError) {
-      setError(
-        startError instanceof ApiError && startError.status === 400
-          ? "Import payload validation failed."
-          : startError instanceof Error
-            ? startError.message
-            : "Failed to start import."
-      );
+      handleImportError(startError, payload);
     } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const onGrantAndRetry = async () => {
+    if (!pendingRetryPayload) {
+      await onGrantConsent();
+      return;
+    }
+
+    try {
+      setError(null);
+      setIsConsentUpdating(true);
+      setIsSubmitting(true);
+      const status = await consentApi.grantImportConsent(IMPORT_PROVIDER);
+      setConsentStatus(status);
+      await runImport(pendingRetryPayload);
+    } catch (retryError) {
+      setError(retryError instanceof Error ? retryError.message : "Failed to grant consent and retry import.");
+    } finally {
+      setIsConsentUpdating(false);
       setIsSubmitting(false);
     }
   };
@@ -148,6 +271,7 @@ const ImportScreen = () => {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Import consent</Text>
+
         {isConsentLoading ? <Text style={styles.meta}>Loading consent...</Text> : null}
         <Text style={styles.meta}>Status: {consent?.status ?? "UNKNOWN"}</Text>
         <View style={styles.actions}>
@@ -163,6 +287,7 @@ const ImportScreen = () => {
             disabled={isConsentLoading || isConsentUpdating}
           />
         </View>
+
       </View>
 
       <View style={styles.section}>
@@ -189,9 +314,11 @@ const ImportScreen = () => {
           value={message}
           onChangeText={setMessage}
         />
+
         <AppButton
           disabled={!canSubmit || isSubmitting}
           fullWidth
+
           title={isSubmitting ? "Starting..." : "Start import"}
           onPress={() => void onStartImport()}
         />

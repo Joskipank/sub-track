@@ -25,3 +25,6 @@ out/
 
 # Logs
 *.log
+
+apps/backend/bin/
+*.class

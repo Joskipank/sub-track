@@ -45,11 +45,13 @@ const postAuth = async <T>(paths: string[], payload: unknown): Promise<T> => {
 
 export const authApi = {
   login: async (payload: AuthCredentials): Promise<AuthResponse> => {
+
     const data = await postAuth<RawAuthResponse>(["/api/v1/auth/login", "/auth/login"], payload);
     return { token: extractToken(data) };
   },
   register: async (payload: RegisterPayload): Promise<AuthResponse> => {
     const data = await postAuth<RawAuthResponse>(["/api/v1/auth/register", "/auth/register"], {
+
       email: payload.email,
       password: payload.password
     });

@@ -89,3 +89,24 @@ subtrack/
    ├─ start/
    ├─ db/
    └─ utils/
+```
+
+---
+
+## API Contract Policy
+
+API-контракт backend считается стабильным и self-serve.  
+Детальные правила и handoff: [BACKEND_HANDOFF.md](./BACKEND_HANDOFF.md).
+
+Обязательные требования для любого PR с изменением API:
+- обновить OpenAPI (`docs/api-notes/subtrack-openapi.yaml`) в том же PR;
+- обновить/добавить backend тесты под изменённое поведение;
+- обновить docs/demo сценарии при изменении внешнего поведения API;
+- не допускать “тихих” breaking changes (только с явной депрекацией/миграционными заметками).
+
+Автоматическая проверка контракта:
+- локальный запуск полного набора проверок:
+  - `powershell -ExecutionPolicy Bypass -File scripts/contracts/run-contract-checks.ps1`
+- обновление baseline только при осознанном контрактном изменении:
+  - `powershell -ExecutionPolicy Bypass -File scripts/contracts/update-openapi-baseline.ps1 -ConfirmContractChange`
+- детали: `docs/api-notes/contract-guard.md`
