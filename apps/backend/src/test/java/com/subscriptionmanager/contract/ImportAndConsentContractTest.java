@@ -4,6 +4,7 @@ import com.subscriptionmanager.common.enums.ImportProvider;
 import com.subscriptionmanager.consent.controller.ImportConsentController;
 import com.subscriptionmanager.consent.dto.ImportConsentStatusResponse;
 import com.subscriptionmanager.consent.service.ImportConsentService;
+import com.subscriptionmanager.exception.ApiException;
 import com.subscriptionmanager.exception.GlobalExceptionHandler;
 import com.subscriptionmanager.importing.controller.ImportController;
 import com.subscriptionmanager.importing.dto.ImportErrorItemResponse;
@@ -94,6 +95,62 @@ class ImportAndConsentContractTest {
                 .andExpect(jsonPath("$.skipped").value(0))
                 .andExpect(jsonPath("$.errors").value(0))
                 .andExpect(jsonPath("$.errorItems").isArray());
+    }
+
+    @Test
+    void importStartEnabledButNotImplementedProviderContract() throws Exception {
+        String body = """
+                {
+                  "provider": "YANDEX",
+                  "messages": [
+                    {
+                      "externalId": "yandex-msg-not-impl-001",
+                      "from": "billing@yandex.ru",
+                      "subject": "Yandex Plus renewal",
+                      "body": "Your renewal is scheduled for 2026-03-20. Amount: 299.00 RUB",
+                      "receivedAt": "2026-03-08T10:00:00Z"
+                    }
+                  ]
+                }
+                """;
+
+        when(currentUserService.requireCurrentUserId()).thenReturn(1L);
+        when(importService.start(eq(1L), any()))
+                .thenThrow(new ApiException("provider YANDEX is enabled but import flow is not implemented yet"));
+
+        mockMvc.perform(post("/api/v1/imports/start")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("provider YANDEX is enabled but import flow is not implemented yet"));
+    }
+
+    @Test
+    void importStartLegacyErrorForNonGmailWhenFlagsAreOffContract() throws Exception {
+        String body = """
+                {
+                  "provider": "YANDEX",
+                  "messages": [
+                    {
+                      "externalId": "yandex-msg-off-001",
+                      "from": "billing@yandex.ru",
+                      "subject": "Yandex Plus renewal",
+                      "body": "Your renewal is scheduled for 2026-03-20. Amount: 299.00 RUB",
+                      "receivedAt": "2026-03-08T10:00:00Z"
+                    }
+                  ]
+                }
+                """;
+
+        when(currentUserService.requireCurrentUserId()).thenReturn(1L);
+        when(importService.start(eq(1L), any()))
+                .thenThrow(new ApiException("only GMAIL provider is supported in MVP"));
+
+        mockMvc.perform(post("/api/v1/imports/start")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("only GMAIL provider is supported in MVP"));
     }
 
     @Test
@@ -246,6 +303,82 @@ class ImportAndConsentContractTest {
         mockMvc.perform(post("/api/v1/consents/imports/GMAIL/revoke"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.provider").value("GMAIL"))
+                .andExpect(jsonPath("$.status").value("REVOKED"))
+                .andExpect(jsonPath("$.scope").value("MAIL_IMPORT_READ"))
+                .andExpect(jsonPath("$.integrationStatus").value("REVOKED"));
+    }
+
+    @Test
+    void consentLegacyErrorsForNonGmailWhenFlagsAreOffContract() throws Exception {
+        when(currentUserService.requireCurrentUserId()).thenReturn(1L);
+        when(importConsentService.status(1L, "YANDEX"))
+                .thenThrow(new ApiException("provider must be one of: GMAIL"));
+        when(importConsentService.grant(1L, "YANDEX"))
+                .thenThrow(new ApiException("provider must be one of: GMAIL"));
+        when(importConsentService.revoke(1L, "YANDEX"))
+                .thenThrow(new ApiException("provider must be one of: GMAIL"));
+
+        mockMvc.perform(get("/api/v1/consents/imports/YANDEX"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("provider must be one of: GMAIL"));
+
+        mockMvc.perform(post("/api/v1/consents/imports/YANDEX/grant"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("provider must be one of: GMAIL"));
+
+        mockMvc.perform(post("/api/v1/consents/imports/YANDEX/revoke"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("provider must be one of: GMAIL"));
+    }
+
+    @Test
+    void consentEndpointsContractForEnabledProviderScaffold() throws Exception {
+        when(currentUserService.requireCurrentUserId()).thenReturn(1L);
+        when(importConsentService.status(1L, "YANDEX"))
+                .thenReturn(new ImportConsentStatusResponse(
+                        "YANDEX",
+                        "NOT_GRANTED",
+                        "MAIL_IMPORT_READ",
+                        null,
+                        null,
+                        "NOT_CONNECTED"
+                ));
+        when(importConsentService.grant(1L, "YANDEX"))
+                .thenReturn(new ImportConsentStatusResponse(
+                        "YANDEX",
+                        "GRANTED",
+                        "MAIL_IMPORT_READ",
+                        OffsetDateTime.parse("2026-03-10T10:00:00Z"),
+                        null,
+                        "ACTIVE"
+                ));
+        when(importConsentService.revoke(1L, "YANDEX"))
+                .thenReturn(new ImportConsentStatusResponse(
+                        "YANDEX",
+                        "REVOKED",
+                        "MAIL_IMPORT_READ",
+                        OffsetDateTime.parse("2026-03-10T10:00:00Z"),
+                        OffsetDateTime.parse("2026-03-10T11:00:00Z"),
+                        "REVOKED"
+                ));
+
+        mockMvc.perform(get("/api/v1/consents/imports/YANDEX"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.provider").value("YANDEX"))
+                .andExpect(jsonPath("$.status").value("NOT_GRANTED"))
+                .andExpect(jsonPath("$.scope").value("MAIL_IMPORT_READ"))
+                .andExpect(jsonPath("$.integrationStatus").value("NOT_CONNECTED"));
+
+        mockMvc.perform(post("/api/v1/consents/imports/YANDEX/grant"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.provider").value("YANDEX"))
+                .andExpect(jsonPath("$.status").value("GRANTED"))
+                .andExpect(jsonPath("$.scope").value("MAIL_IMPORT_READ"))
+                .andExpect(jsonPath("$.integrationStatus").value("ACTIVE"));
+
+        mockMvc.perform(post("/api/v1/consents/imports/YANDEX/revoke"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.provider").value("YANDEX"))
                 .andExpect(jsonPath("$.status").value("REVOKED"))
                 .andExpect(jsonPath("$.scope").value("MAIL_IMPORT_READ"))
                 .andExpect(jsonPath("$.integrationStatus").value("REVOKED"));

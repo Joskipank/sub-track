@@ -2,6 +2,7 @@ package com.subscriptionmanager.consent.controller;
 
 import com.subscriptionmanager.consent.dto.ImportConsentStatusResponse;
 import com.subscriptionmanager.consent.service.ImportConsentService;
+import com.subscriptionmanager.exception.ApiException;
 import com.subscriptionmanager.exception.GlobalExceptionHandler;
 import com.subscriptionmanager.security.CurrentUserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -90,5 +91,38 @@ class ImportConsentControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("REVOKED"))
                 .andExpect(jsonPath("$.integrationStatus").value("REVOKED"));
+    }
+
+    @Test
+    void statusReturnsBadRequestForNonGmailWhenFlagsAreOff() throws Exception {
+        when(currentUserService.requireCurrentUserId()).thenReturn(1L);
+        when(importConsentService.status(1L, "YANDEX"))
+                .thenThrow(new ApiException("provider must be one of: GMAIL"));
+
+        mockMvc.perform(get("/api/v1/consents/imports/YANDEX"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("provider must be one of: GMAIL"));
+    }
+
+    @Test
+    void grantReturnsBadRequestForNonGmailWhenFlagsAreOff() throws Exception {
+        when(currentUserService.requireCurrentUserId()).thenReturn(1L);
+        when(importConsentService.grant(1L, "YANDEX"))
+                .thenThrow(new ApiException("provider must be one of: GMAIL"));
+
+        mockMvc.perform(post("/api/v1/consents/imports/YANDEX/grant"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("provider must be one of: GMAIL"));
+    }
+
+    @Test
+    void revokeReturnsBadRequestForNonGmailWhenFlagsAreOff() throws Exception {
+        when(currentUserService.requireCurrentUserId()).thenReturn(1L);
+        when(importConsentService.revoke(1L, "YANDEX"))
+                .thenThrow(new ApiException("provider must be one of: GMAIL"));
+
+        mockMvc.perform(post("/api/v1/consents/imports/YANDEX/revoke"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("provider must be one of: GMAIL"));
     }
 }

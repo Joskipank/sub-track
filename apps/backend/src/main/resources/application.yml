@@ -24,9 +24,20 @@ server:
 
 app:
   jwt:
-    secret: ${JWT_SECRET:subtrack-dev-secret-change-me-at-least-32-bytes}
+    secret: ${JWT_SECRET:change-me}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:19006}
   notifications:
     inactivity-days: ${NOTIFICATION_INACTIVITY_DAYS:14}
+
+import:
+  providers:
+    gmail:
+      enabled: ${IMPORT_PROVIDERS_GMAIL_ENABLED:true}
+    yandex:
+      enabled: ${IMPORT_PROVIDERS_YANDEX_ENABLED:false}
+    mail-ru:
+      enabled: ${IMPORT_PROVIDERS_MAIL_RU_ENABLED:false}
+    bank-api:
+      enabled: ${IMPORT_PROVIDERS_BANK_API_ENABLED:false}

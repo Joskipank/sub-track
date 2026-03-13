@@ -60,7 +60,7 @@ if ($shouldDownload) {
 Write-Host "Checking OpenAPI compatibility against baseline ..."
 Push-Location $repoRoot
 try {
-    & java -jar $toolPath --fail-on-incompatible --state $baselineArg $currentArg
+    & java -jar $toolPath --fail-on-incompatible $baselineArg $currentArg
     $exitCode = $LASTEXITCODE
 } finally {
     Pop-Location

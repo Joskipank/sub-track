@@ -6,6 +6,7 @@ import com.subscriptionmanager.entity.Consent;
 import com.subscriptionmanager.entity.IntegrationConnection;
 import com.subscriptionmanager.entity.User;
 import com.subscriptionmanager.exception.ApiException;
+import com.subscriptionmanager.importing.provider.ImportProviderAvailabilityPolicy;
 import com.subscriptionmanager.repository.ConsentRepository;
 import com.subscriptionmanager.repository.IntegrationConnectionRepository;
 import com.subscriptionmanager.repository.UserRepository;
@@ -14,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 
 @Service
@@ -30,21 +30,24 @@ public class ImportConsentServiceImpl implements ImportConsentService {
     private final ConsentRepository consentRepository;
     private final IntegrationConnectionRepository integrationConnectionRepository;
     private final UserRepository userRepository;
+    private final ImportProviderAvailabilityPolicy importProviderAvailabilityPolicy;
 
     public ImportConsentServiceImpl(
             ConsentRepository consentRepository,
             IntegrationConnectionRepository integrationConnectionRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            ImportProviderAvailabilityPolicy importProviderAvailabilityPolicy
     ) {
         this.consentRepository = consentRepository;
         this.integrationConnectionRepository = integrationConnectionRepository;
         this.userRepository = userRepository;
+        this.importProviderAvailabilityPolicy = importProviderAvailabilityPolicy;
     }
 
     @Override
     @Transactional
     public ImportConsentStatusResponse grant(Long userId, String providerRaw) {
-        ImportProvider provider = resolveProvider(providerRaw);
+        ImportProvider provider = importProviderAvailabilityPolicy.resolveEnabledForConsent(providerRaw);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException("User not found"));
 
@@ -65,7 +68,7 @@ public class ImportConsentServiceImpl implements ImportConsentService {
     @Override
     @Transactional
     public ImportConsentStatusResponse revoke(Long userId, String providerRaw) {
-        ImportProvider provider = resolveProvider(providerRaw);
+        ImportProvider provider = importProviderAvailabilityPolicy.resolveEnabledForConsent(providerRaw);
         List<Consent> activeConsents = consentRepository.findByUserIdAndProviderAndRevokedAtIsNull(userId, provider);
         if (!activeConsents.isEmpty()) {
             OffsetDateTime revokedAt = OffsetDateTime.now();
@@ -82,7 +85,7 @@ public class ImportConsentServiceImpl implements ImportConsentService {
     @Override
     @Transactional(readOnly = true)
     public ImportConsentStatusResponse status(Long userId, String providerRaw) {
-        ImportProvider provider = resolveProvider(providerRaw);
+        ImportProvider provider = importProviderAvailabilityPolicy.resolveEnabledForConsent(providerRaw);
         Optional<Consent> latestConsent = consentRepository.findTopByUserIdAndProviderOrderByGrantedAtDesc(userId, provider);
         String integrationStatus = integrationConnectionRepository
                 .findTopByUserIdAndProviderOrderByUpdatedAtDesc(userId, provider)
@@ -126,24 +129,5 @@ public class ImportConsentServiceImpl implements ImportConsentService {
         connection.setStatus(status);
         connection.setUpdatedAt(OffsetDateTime.now());
         integrationConnectionRepository.save(connection);
-    }
-
-    private ImportProvider resolveProvider(String providerRaw) {
-        if (providerRaw == null || providerRaw.isBlank()) {
-            throw new ApiException("provider is required");
-        }
-
-        ImportProvider provider;
-        try {
-            provider = ImportProvider.valueOf(providerRaw.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            throw new ApiException("provider must be one of: GMAIL");
-        }
-
-        if (provider != ImportProvider.GMAIL) {
-            throw new ApiException("provider must be one of: GMAIL");
-        }
-
-        return provider;
     }
 }

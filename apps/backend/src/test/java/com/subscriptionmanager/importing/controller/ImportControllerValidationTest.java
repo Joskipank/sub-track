@@ -114,6 +114,34 @@ class ImportControllerValidationTest {
     }
 
     @Test
+    void startReturnsControlledErrorForEnabledButNotImplementedProvider() throws Exception {
+        String body = """
+                {
+                  "provider": "YANDEX",
+                  "messages": [
+                    {
+                      "externalId": "yandex-msg-not-impl-001",
+                      "from": "billing@yandex.ru",
+                      "subject": "Yandex Plus renewal",
+                      "body": "Your renewal is scheduled for 2026-03-20. Amount: 299.00 RUB",
+                      "receivedAt": "2026-03-08T10:00:00Z"
+                    }
+                  ]
+                }
+                """;
+
+        when(currentUserService.requireCurrentUserId()).thenReturn(1L);
+        when(importService.start(eq(1L), any()))
+                .thenThrow(new ApiException("provider YANDEX is enabled but import flow is not implemented yet"));
+
+        mockMvc.perform(post("/api/v1/imports/start")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("provider YANDEX is enabled but import flow is not implemented yet"));
+    }
+
+    @Test
     void startReturnsForbiddenWhenConsentMissing() throws Exception {
         String body = """
                 {

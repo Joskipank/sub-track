@@ -18,6 +18,7 @@ import com.subscriptionmanager.importing.dto.ImportStartRequest;
 import com.subscriptionmanager.importing.dto.MailMessageRequest;
 import com.subscriptionmanager.importing.exception.ImportConsentRequiredException;
 import com.subscriptionmanager.importing.parser.GmailNetflixParser;
+import com.subscriptionmanager.importing.provider.ImportProviderAvailabilityPolicy;
 import com.subscriptionmanager.repository.CategoryRepository;
 import com.subscriptionmanager.repository.ConsentRepository;
 import com.subscriptionmanager.repository.ImportItemRepository;
@@ -46,6 +47,7 @@ public class ImportServiceImpl implements ImportService {
     private final ConsentRepository consentRepository;
     private final UserRepository userRepository;
     private final GmailNetflixParser gmailNetflixParser;
+    private final ImportProviderAvailabilityPolicy importProviderAvailabilityPolicy;
 
     public ImportServiceImpl(
             ImportJobRepository importJobRepository,
@@ -54,7 +56,8 @@ public class ImportServiceImpl implements ImportService {
             CategoryRepository categoryRepository,
             ConsentRepository consentRepository,
             UserRepository userRepository,
-            GmailNetflixParser gmailNetflixParser
+            GmailNetflixParser gmailNetflixParser,
+            ImportProviderAvailabilityPolicy importProviderAvailabilityPolicy
     ) {
         this.importJobRepository = importJobRepository;
         this.importItemRepository = importItemRepository;
@@ -63,6 +66,7 @@ public class ImportServiceImpl implements ImportService {
         this.consentRepository = consentRepository;
         this.userRepository = userRepository;
         this.gmailNetflixParser = gmailNetflixParser;
+        this.importProviderAvailabilityPolicy = importProviderAvailabilityPolicy;
     }
 
     @Override
@@ -71,8 +75,11 @@ public class ImportServiceImpl implements ImportService {
         if (request == null) {
             throw new ApiException("request is required");
         }
-        validateProvider(request.provider());
-        ensureActiveConsent(userId, request.provider());
+
+        ImportProvider provider = importProviderAvailabilityPolicy.requireEnabledForImport(request.provider());
+        importProviderAvailabilityPolicy.requireImplementedForImport(provider);
+        ensureActiveConsent(userId, provider);
+
         if (request.messages() == null || request.messages().isEmpty()) {
             throw new ApiException("messages must contain at least one message");
         }
@@ -82,7 +89,7 @@ public class ImportServiceImpl implements ImportService {
 
         ImportJob job = new ImportJob();
         job.setUser(user);
-        job.setProvider(request.provider());
+        job.setProvider(provider);
         job.setStatus(ImportJobStatus.IN_PROGRESS.name());
         job.setStartedAt(OffsetDateTime.now());
         job.setErrorMessage(null);
@@ -225,16 +232,6 @@ public class ImportServiceImpl implements ImportService {
                 job.getFinishedAt(),
                 errorItems
         );
-    }
-
-    private void validateProvider(ImportProvider provider) {
-        if (provider == null) {
-            throw new ApiException("provider is required");
-        }
-
-        if (provider != ImportProvider.GMAIL) {
-            throw new ApiException("only GMAIL provider is supported in MVP");
-        }
     }
 
     private void ensureActiveConsent(Long userId, ImportProvider provider) {
