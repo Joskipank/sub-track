@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { categoryApi } from "../api/categoryApi";
 import { ApiError } from "../api/httpClient";
 
 import { subscriptionApi } from "../api/subscriptionApi";
@@ -67,12 +66,6 @@ const UpcomingScreen = () => {
     } finally {
       setBusyId(null);
     }
-  };
-
-  const formatStatus = (status: SubscriptionStatus) => {
-    if (status === "ACTIVE") return "ACTIVE";
-    if (status === "PAUSED") return "PAUSED";
-    return "CANCELED";
   };
 
   return (

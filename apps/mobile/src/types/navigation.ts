@@ -8,8 +8,6 @@ export type MainTabsParamList = {
   Subscriptions: undefined;
   Upcoming: undefined;
   Reminders: undefined;
-  Integrations: undefined;
-  Recommendations: undefined;
   Analytics: undefined;
   Import: undefined;
   Settings: undefined;
