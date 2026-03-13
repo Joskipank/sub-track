@@ -3,6 +3,7 @@
 ## Preconditions
 - Backend is running on `http://localhost:8080`
 - Test user exists or can be created via `/api/v1/auth/register`
+- Provider flags are default (`GMAIL=true`, `YANDEX=false`, `MAIL_RU=false`, `BANK_API=false`), so smoke flow uses `GMAIL`.
 
 ## 1) Login and get JWT
 ```bash

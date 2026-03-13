@@ -30,10 +30,16 @@
   - `401` invalid credentials (`{ "message": "Invalid credentials" }`)
 
 ## 4) Import + Consent Flow
-- Consent endpoints (provider path currently supports only `GMAIL`):
+- Consent endpoints (stable v1 contract supports only `GMAIL`):
   - `GET /api/v1/consents/imports/{provider}` -> status (`GRANTED|REVOKED|NOT_GRANTED`)
   - `POST /api/v1/consents/imports/{provider}/grant`
   - `POST /api/v1/consents/imports/{provider}/revoke`
+- Provider availability is controlled by feature flags:
+  - `import.providers.gmail.enabled`
+  - `import.providers.yandex.enabled`
+  - `import.providers.mail-ru.enabled`
+  - `import.providers.bank-api.enabled`
+- Default flag matrix: `gmail=true`, `yandex=false`, `mail-ru=false`, `bank-api=false`.
 - Import start:
   - `POST /api/v1/imports/start` with `{ provider, messages[] }`
   - Requires active consent for provider.
@@ -48,7 +54,8 @@
 - Query param `months` on `/api/v1/forecast` is deprecated and ignored.
 
 ## 6) MVP Limitations
-- Only `GMAIL` provider is accepted for import/consent.
+- Default runtime behavior keeps MVP compatibility: only `GMAIL` is enabled out of the box.
+- Non-GMAIL providers are scaffolded behind flags for internal rollout; stable v1 OpenAPI contract remains GMAIL-only.
 - Parser supports deterministic templates for Netflix, Spotify, YouTube Premium.
 - Import is synchronous MVP flow (`POST /imports/start` returns final result in same request).
 - No external OAuth flow in backend MVP (consent persisted internally).

@@ -10,6 +10,9 @@ import com.subscriptionmanager.importing.dto.ImportStartRequest;
 import com.subscriptionmanager.importing.dto.MailMessageRequest;
 import com.subscriptionmanager.importing.exception.ImportConsentRequiredException;
 import com.subscriptionmanager.importing.parser.GmailNetflixParser;
+import com.subscriptionmanager.importing.config.ImportProviderFeatureFlagsProperties;
+import com.subscriptionmanager.importing.provider.ImportProviderAvailabilityPolicy;
+import com.subscriptionmanager.importing.provider.ImportProviderScaffoldRegistry;
 import com.subscriptionmanager.repository.CategoryRepository;
 import com.subscriptionmanager.repository.ConsentRepository;
 import com.subscriptionmanager.repository.ImportItemRepository;
@@ -35,6 +38,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -56,9 +61,11 @@ class ImportServiceImplTest {
     private GmailNetflixParser gmailNetflixParser;
 
     private ImportServiceImpl importService;
+    private ImportProviderFeatureFlagsProperties providerFlags;
 
     @BeforeEach
     void setUp() {
+        providerFlags = defaultProviderFlags();
         importService = new ImportServiceImpl(
                 importJobRepository,
                 importItemRepository,
@@ -66,7 +73,8 @@ class ImportServiceImplTest {
                 categoryRepository,
                 consentRepository,
                 userRepository,
-                gmailNetflixParser
+                gmailNetflixParser,
+                new ImportProviderAvailabilityPolicy(providerFlags, new ImportProviderScaffoldRegistry())
         );
 
         User user = new User();
@@ -196,11 +204,37 @@ class ImportServiceImplTest {
     }
 
     @Test
-    void startThrowsForProviderOtherThanGmail() {
+    void startKeepsLegacyErrorForNonGmailWhenProviderFlagIsOff() {
         MailMessageRequest message = message("ext-3");
         ImportStartRequest request = new ImportStartRequest(ImportProvider.YANDEX, List.of(message));
 
-        assertThrows(ApiException.class, () -> importService.start(1L, request));
+        ApiException exception = assertThrows(ApiException.class, () -> importService.start(1L, request));
+        assertEquals("only GMAIL provider is supported in MVP", exception.getMessage());
+    }
+
+    @Test
+    void startReturnsControlledErrorWhenProviderEnabledButNotImplemented() {
+        providerFlags.getYandex().setEnabled(true);
+        importService = new ImportServiceImpl(
+                importJobRepository,
+                importItemRepository,
+                subscriptionRepository,
+                categoryRepository,
+                consentRepository,
+                userRepository,
+                gmailNetflixParser,
+                new ImportProviderAvailabilityPolicy(providerFlags, new ImportProviderScaffoldRegistry())
+        );
+
+        MailMessageRequest message = message("ext-yandex");
+        ImportStartRequest request = new ImportStartRequest(ImportProvider.YANDEX, List.of(message));
+
+        ApiException exception = assertThrows(ApiException.class, () -> importService.start(1L, request));
+
+        assertEquals("provider YANDEX is enabled but import flow is not implemented yet", exception.getMessage());
+        verify(importJobRepository, never()).save(any(ImportJob.class));
+        verify(importItemRepository, never()).save(any());
+        verify(subscriptionRepository, never()).save(any());
     }
 
     @Test
@@ -309,5 +343,14 @@ class ImportServiceImplTest {
                 "Your Netflix renewal is scheduled for 2026-03-20. Amount: 9.99 USD",
                 OffsetDateTime.now()
         );
+    }
+
+    private ImportProviderFeatureFlagsProperties defaultProviderFlags() {
+        ImportProviderFeatureFlagsProperties flags = new ImportProviderFeatureFlagsProperties();
+        flags.getGmail().setEnabled(true);
+        flags.getYandex().setEnabled(false);
+        flags.getMailRu().setEnabled(false);
+        flags.getBankApi().setEnabled(false);
+        return flags;
     }
 }

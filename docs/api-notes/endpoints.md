@@ -32,6 +32,7 @@ Contract guard checks and baseline policy: `docs/api-notes/contract-guard.md`.
 - Grant consent: `POST /api/v1/consents/imports/GMAIL/grant`.
 - Revoke consent: `POST /api/v1/consents/imports/GMAIL/revoke`.
 - Import endpoint `POST /api/v1/imports/start` requires active consent and returns `403 IMPORT_CONSENT_REQUIRED` when missing.
+- Runtime scaffold flags exist for future providers (`import.providers.*.enabled`), but stable v1 external contract remains GMAIL-only.
 
 ## Usage signal endpoints
 - Create usage signal: `POST /api/v1/usage-signals`.
