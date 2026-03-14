@@ -54,12 +54,14 @@ public class GmailNetflixParser {
             DateTimeFormatter.ofPattern("d MMMM uuuu", Locale.ENGLISH),
             DateTimeFormatter.ofPattern("d MMM uuuu", Locale.ENGLISH),
             DateTimeFormatter.ofPattern("MM/dd/uuuu", Locale.ENGLISH),
-            DateTimeFormatter.ofPattern("dd/MM/uuuu", Locale.ENGLISH)
+            DateTimeFormatter.ofPattern("dd/MM/uuuu", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("dd.MM.uuuu", Locale.ENGLISH)
     );
 
     private static final Pattern ISO_DATE_PATTERN = Pattern.compile("\\b(20\\d{2}-\\d{2}-\\d{2})\\b");
     private static final Pattern TEXTUAL_DATE_PATTERN = Pattern.compile(
-            "\\b([A-Z][a-z]{2,8}\\s+\\d{1,2},\\s+20\\d{2}|\\d{1,2}\\s+[A-Z][a-z]{2,8}\\s+20\\d{2}|\\d{1,2}/\\d{1,2}/20\\d{2})\\b"
+            "\\b([A-Z]{3,9}\\s+\\d{1,2}(?:st|nd|rd|th)?,\\s+20\\d{2}|\\d{1,2}(?:st|nd|rd|th)?\\s+[A-Z]{3,9}\\s+20\\d{2}|\\d{1,2}/\\d{1,2}/20\\d{2}|\\d{1,2}\\.\\d{1,2}\\.20\\d{2})\\b",
+            Pattern.CASE_INSENSITIVE
     );
     private static final Pattern AMOUNT_WITH_CURRENCY_PATTERN = Pattern.compile(
             "(?i)(?:amount|charge(?:d)?|renewal|payment|total|invoice|receipt|plan)\\D{0,20}(\\d+(?:[.,]\\d{1,2})?)\\s*([A-Z]{3})"
@@ -187,15 +189,16 @@ public class GmailNetflixParser {
     }
 
     private Optional<LocalDate> tryDate(String rawDate) {
+        String sanitized = sanitizeDateToken(rawDate);
         for (DateTimeFormatter formatter : DATE_FORMATTERS) {
             try {
-                return Optional.of(LocalDate.parse(rawDate, formatter));
+                return Optional.of(LocalDate.parse(sanitized, formatter));
             } catch (DateTimeParseException ignored) {
                 // Try next formatter.
             }
         }
 
-        String normalized = normalizeMonthCase(rawDate);
+        String normalized = normalizeMonthCase(sanitized);
         for (DateTimeFormatter formatter : DATE_FORMATTERS) {
             try {
                 return Optional.of(LocalDate.parse(normalized, formatter));
@@ -204,6 +207,10 @@ public class GmailNetflixParser {
             }
         }
         return Optional.empty();
+    }
+
+    private String sanitizeDateToken(String rawDate) {
+        return rawDate.replaceAll("(?i)(\\d{1,2})(st|nd|rd|th)", "$1");
     }
 
     private String normalizeMonthCase(String rawDate) {
