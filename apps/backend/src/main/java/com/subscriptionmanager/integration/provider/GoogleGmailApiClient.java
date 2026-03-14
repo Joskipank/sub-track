@@ -91,7 +91,7 @@ public class GoogleGmailApiClient {
                 builder.queryParam("pageToken", pageToken);
             }
 
-            JsonNode node = authorizedGet(accessToken, builder.build(true).toUriString());
+            JsonNode node = authorizedGet(accessToken, builder.build(false).toUriString());
             for (JsonNode messageNode : node.path("messages")) {
                 messages.add(new GmailMessageSummary(
                         text(messageNode, "id"),

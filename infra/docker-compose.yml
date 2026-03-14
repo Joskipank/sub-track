@@ -27,6 +27,14 @@ services:
       SPRING_DATASOURCE_USERNAME: subtrack
       SPRING_DATASOURCE_PASSWORD: subtrack
       JWT_SECRET: subtrack-dev-secret-change-me-at-least-32-bytes
+      IMPORT_PROVIDERS_GMAIL_ENABLED: ${IMPORT_PROVIDERS_GMAIL_ENABLED:-true}
+      IMPORT_PROVIDERS_GMAIL_MAILBOX_ENABLED: ${IMPORT_PROVIDERS_GMAIL_MAILBOX_ENABLED:-true}
+      GMAIL_CLIENT_ID: ${GMAIL_CLIENT_ID:-}
+      GMAIL_CLIENT_SECRET: ${GMAIL_CLIENT_SECRET:-}
+      GMAIL_REDIRECT_URI: ${GMAIL_REDIRECT_URI:-http://localhost:8080/api/v1/integrations/GMAIL/oauth/callback}
+      GMAIL_FRONTEND_REDIRECT_URI: ${GMAIL_FRONTEND_REDIRECT_URI:-http://localhost:5173/import}
+      INTEGRATIONS_TOKEN_ENCRYPTION_SECRET: ${INTEGRATIONS_TOKEN_ENCRYPTION_SECRET:-subtrack-dev-secret-change-me-at-least-32-bytes}
+      INTEGRATIONS_OAUTH_STATE_SECRET: ${INTEGRATIONS_OAUTH_STATE_SECRET:-subtrack-dev-secret-change-me-at-least-32-bytes}
     depends_on:
       postgres:
         condition: service_healthy
