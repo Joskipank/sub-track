@@ -1,6 +1,8 @@
 package com.subscriptionmanager.exception;
 
 import com.subscriptionmanager.importing.exception.ImportConsentRequiredException;
+import com.subscriptionmanager.importing.exception.MailboxConnectionRequiredException;
+import com.subscriptionmanager.importing.exception.MailboxReauthRequiredException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.AuthenticationException;
@@ -22,6 +24,24 @@ public class GlobalExceptionHandler {
         body.put("message", ex.getMessage());
         body.put("provider", ex.getProvider().name());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
+    @ExceptionHandler(MailboxConnectionRequiredException.class)
+    public ResponseEntity<Map<String, Object>> handleMailboxConnectionRequired(MailboxConnectionRequiredException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("code", MailboxConnectionRequiredException.ERROR_CODE);
+        body.put("message", ex.getMessage());
+        body.put("provider", ex.getProvider().name());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    @ExceptionHandler(MailboxReauthRequiredException.class)
+    public ResponseEntity<Map<String, Object>> handleMailboxReauthRequired(MailboxReauthRequiredException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("code", MailboxReauthRequiredException.ERROR_CODE);
+        body.put("message", ex.getMessage());
+        body.put("provider", ex.getProvider().name());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
     @ExceptionHandler(ApiException.class)

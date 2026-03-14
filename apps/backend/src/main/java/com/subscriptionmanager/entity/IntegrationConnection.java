@@ -31,6 +31,15 @@ public class IntegrationConnection {
 
     private OffsetDateTime tokenExpiresAt;
 
+    private String externalAccountEmail;
+
+    private OffsetDateTime lastSyncAt;
+
+    private String lastErrorCode;
+
+    @Column(columnDefinition = "TEXT")
+    private String lastErrorMessage;
+
     @Column(nullable = false)
     private OffsetDateTime createdAt;
 
@@ -91,6 +100,38 @@ public class IntegrationConnection {
 
     public void setTokenExpiresAt(OffsetDateTime tokenExpiresAt) {
         this.tokenExpiresAt = tokenExpiresAt;
+    }
+
+    public String getExternalAccountEmail() {
+        return externalAccountEmail;
+    }
+
+    public void setExternalAccountEmail(String externalAccountEmail) {
+        this.externalAccountEmail = externalAccountEmail;
+    }
+
+    public OffsetDateTime getLastSyncAt() {
+        return lastSyncAt;
+    }
+
+    public void setLastSyncAt(OffsetDateTime lastSyncAt) {
+        this.lastSyncAt = lastSyncAt;
+    }
+
+    public String getLastErrorCode() {
+        return lastErrorCode;
+    }
+
+    public void setLastErrorCode(String lastErrorCode) {
+        this.lastErrorCode = lastErrorCode;
+    }
+
+    public String getLastErrorMessage() {
+        return lastErrorMessage;
+    }
+
+    public void setLastErrorMessage(String lastErrorMessage) {
+        this.lastErrorMessage = lastErrorMessage;
     }
 
     public OffsetDateTime getCreatedAt() {

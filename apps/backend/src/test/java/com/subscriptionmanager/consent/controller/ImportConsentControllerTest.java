@@ -62,16 +62,16 @@ class ImportConsentControllerTest {
                 .thenReturn(new ImportConsentStatusResponse(
                         "GMAIL",
                         "GRANTED",
-                        "MAIL_IMPORT_READ",
+                        "https://www.googleapis.com/auth/gmail.readonly",
                         OffsetDateTime.parse("2026-03-09T10:00:00Z"),
                         null,
-                        "ACTIVE"
+                        "NOT_CONNECTED"
                 ));
 
         mockMvc.perform(post("/api/v1/consents/imports/GMAIL/grant"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("GRANTED"))
-                .andExpect(jsonPath("$.integrationStatus").value("ACTIVE"));
+                .andExpect(jsonPath("$.integrationStatus").value("NOT_CONNECTED"));
     }
 
     @Test

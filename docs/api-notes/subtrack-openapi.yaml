@@ -124,6 +124,110 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/IntegrationConnectionResponse'
+  /api/v1/integrations/{provider}:
+    get:
+      tags: [integrations]
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema:
+            type: string
+            enum: [GMAIL]
+      responses:
+        '200':
+          description: Current mailbox connection status for provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationConnectionResponse'
+        '400':
+          description: Invalid or unsupported provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/v1/integrations/{provider}/oauth/start:
+    post:
+      tags: [integrations]
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema:
+            type: string
+            enum: [GMAIL]
+      responses:
+        '200':
+          description: OAuth authorization URL for provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthStartResponse'
+        '400':
+          description: Provider is unsupported or mailbox flow feature flag is disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/v1/integrations/{provider}/oauth/callback:
+    get:
+      tags: [integrations]
+      security: []
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema:
+            type: string
+            enum: [GMAIL]
+        - in: query
+          name: code
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: state
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: error
+          required: false
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirects to frontend with `gmail` status and optional safe `reason`.
+        '400':
+          description: Provider is unsupported or mailbox flow feature flag is disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+  /api/v1/integrations/{provider}/disconnect:
+    post:
+      tags: [integrations]
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema:
+            type: string
+            enum: [GMAIL]
+      responses:
+        '200':
+          description: Provider mailbox disconnected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationConnectionResponse'
+        '400':
+          description: Invalid or unsupported provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
   /api/v1/recommendations:
     get:
       tags: [recommendations]
@@ -565,6 +669,42 @@ paths:
                     code: IMPORT_CONSENT_REQUIRED
                     message: active consent is required before import for provider GMAIL
                     provider: GMAIL
+  /api/v1/imports/{provider}/sync:
+    post:
+      tags: [imports]
+      description: Synchronizes supported mailbox provider and runs import pipeline.
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema:
+            type: string
+            enum: [GMAIL]
+      responses:
+        '200':
+          description: Mailbox sync finished (sync MVP)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResultResponse'
+        '400':
+          description: Invalid provider or mailbox flow is disabled by feature flag
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        '403':
+          description: Import consent is missing for provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportConsentErrorResponse'
+        '409':
+          description: Mailbox is not connected or requires OAuth reconnect
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MailboxFlowErrorResponse'
   /api/v1/imports:
     get:
       tags: [imports]
@@ -708,10 +848,41 @@ components:
         id:
           type: integer
           format: int64
+          nullable: true
         provider:
           type: string
         status:
           type: string
+        externalAccountEmail:
+          type: string
+          format: email
+          nullable: true
+        connectedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastSyncAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastErrorCode:
+          type: string
+          nullable: true
+        lastErrorMessage:
+          type: string
+          nullable: true
+    OAuthStartResponse:
+      type: object
+      properties:
+        provider:
+          type: string
+        authorizationUrl:
+          type: string
+          format: uri
     RecommendationResponse:
       type: object
       properties:
@@ -1005,6 +1176,17 @@ components:
         provider:
           type: string
           enum: [GMAIL]
+    MailboxFlowErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          enum: [MAILBOX_CONNECTION_REQUIRED, MAILBOX_REAUTH_REQUIRED]
+        message:
+          type: string
+        provider:
+          type: string
+          enum: [GMAIL]
     ImportStartRequest:
       type: object
       required: [provider, messages]
@@ -1075,6 +1257,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ImportErrorItemResponse'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportItemResultResponse'
       example:
         jobId: 42
         provider: GMAIL
@@ -1088,6 +1274,68 @@ components:
         errorItems:
           - externalId: gmail-msg-003
             reason: parser could not extract next billing date (expected YYYY-MM-DD)
+        items:
+          - externalId: gmail-msg-001
+            status: IMPORTED
+            reason: null
+            sourceProvider: netflix.com
+            serviceName: Netflix
+            amount: 9.99
+            currency: USD
+            billingPeriod: MONTHLY
+            nextBillingDate: 2026-03-20
+            category: Entertainment
+            receivedAt: 2026-03-08T10:00:00Z
+          - externalId: gmail-msg-003
+            status: PARSE_ERROR
+            reason: parser could not extract next billing date (expected YYYY-MM-DD)
+            sourceProvider: netflix.com
+            serviceName: Netflix
+            amount: null
+            currency: null
+            billingPeriod: null
+            nextBillingDate: null
+            category: Entertainment
+            receivedAt: 2026-03-08T10:01:00Z
+    ImportItemResultResponse:
+      type: object
+      properties:
+        externalId:
+          type: string
+        status:
+          type: string
+          enum: [IMPORTED, SKIPPED, PARSE_ERROR, UNSUPPORTED]
+        reason:
+          type: string
+          nullable: true
+        sourceProvider:
+          type: string
+          nullable: true
+        serviceName:
+          type: string
+          nullable: true
+        amount:
+          type: number
+          format: double
+          nullable: true
+        currency:
+          type: string
+          nullable: true
+        billingPeriod:
+          type: string
+          enum: [WEEKLY, MONTHLY, QUARTERLY, YEARLY]
+          nullable: true
+        nextBillingDate:
+          type: string
+          format: date
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        receivedAt:
+          type: string
+          format: date-time
+          nullable: true
     ImportErrorItemResponse:
       type: object
       properties:

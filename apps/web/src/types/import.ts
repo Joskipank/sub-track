@@ -7,18 +7,48 @@ export interface ImportConsentStatus {
   integrationStatus: string | null;
 }
 
+export interface IntegrationStatus {
+  id: number | null;
+  provider: string;
+  status: string;
+  externalAccountEmail: string | null;
+  connectedAt: string | null;
+  updatedAt: string | null;
+  lastSyncAt: string | null;
+  lastErrorCode: string | null;
+  lastErrorMessage: string | null;
+}
+
+export interface OAuthStartResponse {
+  provider: string;
+  authorizationUrl: string;
+}
+
 export interface ImportHistoryItem {
   id: number;
   provider: string;
   status: string;
-  startedAt: string;
+  startedAt: string | null;
   finishedAt: string | null;
 }
 
 export interface ImportErrorItem {
-  code: string;
-  message: string;
   externalId: string | null;
+  reason: string;
+}
+
+export interface ImportItemResult {
+  externalId: string;
+  status: string;
+  reason: string | null;
+  sourceProvider: string | null;
+  serviceName: string | null;
+  amount: number | null;
+  currency: string | null;
+  billingPeriod: string | null;
+  nextBillingDate: string | null;
+  category: string | null;
+  receivedAt: string | null;
 }
 
 export interface ImportResult {
@@ -29,15 +59,8 @@ export interface ImportResult {
   created: number;
   skipped: number;
   errors: number;
-  startedAt: string;
+  startedAt: string | null;
   finishedAt: string | null;
   errorItems: ImportErrorItem[];
-}
-
-export interface MailMessageRequest {
-  externalId: string;
-  from: string;
-  subject: string;
-  body: string;
-  receivedAt: string;
+  items: ImportItemResult[];
 }

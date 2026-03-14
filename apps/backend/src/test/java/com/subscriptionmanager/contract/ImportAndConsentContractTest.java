@@ -9,6 +9,7 @@ import com.subscriptionmanager.exception.GlobalExceptionHandler;
 import com.subscriptionmanager.importing.controller.ImportController;
 import com.subscriptionmanager.importing.dto.ImportErrorItemResponse;
 import com.subscriptionmanager.importing.dto.ImportHistoryItemResponse;
+import com.subscriptionmanager.importing.dto.ImportItemResultResponse;
 import com.subscriptionmanager.importing.dto.ImportResultResponse;
 import com.subscriptionmanager.importing.exception.ImportConsentRequiredException;
 import com.subscriptionmanager.importing.service.ImportService;
@@ -80,6 +81,7 @@ class ImportAndConsentContractTest {
                         0,
                         OffsetDateTime.parse("2026-03-08T10:00:00Z"),
                         OffsetDateTime.parse("2026-03-08T10:00:01Z"),
+                        List.of(),
                         List.of()
                 ));
 
@@ -191,6 +193,19 @@ class ImportAndConsentContractTest {
                         List.of(new ImportErrorItemResponse(
                                 "gmail-msg-003",
                                 "parser could not extract next billing date (expected YYYY-MM-DD)"
+                        )),
+                        List.of(new ImportItemResultResponse(
+                                "gmail-msg-003",
+                                "PARSE_ERROR",
+                                "parser could not extract next billing date (expected YYYY-MM-DD)",
+                                "netflix.com",
+                                "Netflix",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "Entertainment",
+                                OffsetDateTime.parse("2026-03-08T10:00:00Z")
                         ))
                 ));
 
@@ -274,7 +289,7 @@ class ImportAndConsentContractTest {
                         "MAIL_IMPORT_READ",
                         OffsetDateTime.parse("2026-03-09T10:00:00Z"),
                         null,
-                        "ACTIVE"
+                        "NOT_CONNECTED"
                 ));
         when(importConsentService.revoke(1L, "GMAIL"))
                 .thenReturn(new ImportConsentStatusResponse(
@@ -298,7 +313,7 @@ class ImportAndConsentContractTest {
                 .andExpect(jsonPath("$.provider").value("GMAIL"))
                 .andExpect(jsonPath("$.status").value("GRANTED"))
                 .andExpect(jsonPath("$.scope").value("MAIL_IMPORT_READ"))
-                .andExpect(jsonPath("$.integrationStatus").value("ACTIVE"));
+                .andExpect(jsonPath("$.integrationStatus").value("NOT_CONNECTED"));
 
         mockMvc.perform(post("/api/v1/consents/imports/GMAIL/revoke"))
                 .andExpect(status().isOk())
@@ -350,7 +365,7 @@ class ImportAndConsentContractTest {
                         "MAIL_IMPORT_READ",
                         OffsetDateTime.parse("2026-03-10T10:00:00Z"),
                         null,
-                        "ACTIVE"
+                        "NOT_CONNECTED"
                 ));
         when(importConsentService.revoke(1L, "YANDEX"))
                 .thenReturn(new ImportConsentStatusResponse(
@@ -374,7 +389,7 @@ class ImportAndConsentContractTest {
                 .andExpect(jsonPath("$.provider").value("YANDEX"))
                 .andExpect(jsonPath("$.status").value("GRANTED"))
                 .andExpect(jsonPath("$.scope").value("MAIL_IMPORT_READ"))
-                .andExpect(jsonPath("$.integrationStatus").value("ACTIVE"));
+                .andExpect(jsonPath("$.integrationStatus").value("NOT_CONNECTED"));
 
         mockMvc.perform(post("/api/v1/consents/imports/YANDEX/revoke"))
                 .andExpect(status().isOk())

@@ -8,16 +8,16 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "import.providers")
 public class ImportProviderFeatureFlagsProperties {
 
-    private ProviderToggle gmail = new ProviderToggle(true);
+    private GmailProviderToggle gmail = new GmailProviderToggle(true, false);
     private ProviderToggle yandex = new ProviderToggle(false);
     private ProviderToggle mailRu = new ProviderToggle(false);
     private ProviderToggle bankApi = new ProviderToggle(false);
 
-    public ProviderToggle getGmail() {
+    public GmailProviderToggle getGmail() {
         return gmail;
     }
 
-    public void setGmail(ProviderToggle gmail) {
+    public void setGmail(GmailProviderToggle gmail) {
         this.gmail = gmail;
     }
 
@@ -61,6 +61,13 @@ public class ImportProviderFeatureFlagsProperties {
                 && !bankApi.isEnabled();
     }
 
+    public boolean isMailboxFlowEnabled(ImportProvider provider) {
+        return switch (provider) {
+            case GMAIL -> gmail.isMailboxEnabled();
+            case YANDEX, MAIL_RU, BANK_API -> false;
+        };
+    }
+
     public static class ProviderToggle {
         private boolean enabled;
 
@@ -77,6 +84,26 @@ public class ImportProviderFeatureFlagsProperties {
 
         public void setEnabled(boolean enabled) {
             this.enabled = enabled;
+        }
+    }
+
+    public static class GmailProviderToggle extends ProviderToggle {
+        private boolean mailboxEnabled;
+
+        public GmailProviderToggle() {
+        }
+
+        public GmailProviderToggle(boolean enabled, boolean mailboxEnabled) {
+            super(enabled);
+            this.mailboxEnabled = mailboxEnabled;
+        }
+
+        public boolean isMailboxEnabled() {
+            return mailboxEnabled;
+        }
+
+        public void setMailboxEnabled(boolean mailboxEnabled) {
+            this.mailboxEnabled = mailboxEnabled;
         }
     }
 }

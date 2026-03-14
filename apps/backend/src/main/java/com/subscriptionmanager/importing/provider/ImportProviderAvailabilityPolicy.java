@@ -20,6 +20,8 @@ public class ImportProviderAvailabilityPolicy {
             "provider %s is enabled but import flow is not implemented yet";
     private static final String IMPORT_DISABLED_MESSAGE_TEMPLATE =
             "provider %s is disabled by feature flag";
+    private static final String MAILBOX_FLOW_DISABLED_MESSAGE_TEMPLATE =
+            "provider %s mailbox import flow is disabled by feature flag";
 
     private final ImportProviderFeatureFlagsProperties featureFlags;
     private final ImportProviderScaffoldRegistry scaffoldRegistry;
@@ -47,6 +49,14 @@ public class ImportProviderAvailabilityPolicy {
     public void requireImplementedForImport(ImportProvider provider) {
         if (!scaffoldRegistry.isImportFlowImplemented(provider)) {
             throw new ApiException(IMPORT_NOT_IMPLEMENTED_MESSAGE_TEMPLATE.formatted(provider.name()));
+        }
+    }
+
+    public void requireEnabledForMailboxFlow(ImportProvider provider) {
+        requireEnabledForImport(provider);
+        requireImplementedForImport(provider);
+        if (!featureFlags.isMailboxFlowEnabled(provider)) {
+            throw new ApiException(MAILBOX_FLOW_DISABLED_MESSAGE_TEMPLATE.formatted(provider.name()));
         }
     }
 

@@ -52,7 +52,7 @@ class ImportConsentServiceImplTest {
     }
 
     @Test
-    void grantCreatesActiveConsentAndIntegrationStatus() {
+    void grantCreatesConsentWithoutMarkingMailboxAsConnected() {
         User user = new User();
         user.setId(1L);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
@@ -63,13 +63,13 @@ class ImportConsentServiceImplTest {
                 .thenAnswer(invocation -> {
                     Consent consent = new Consent();
                     consent.setProvider(ImportProvider.GMAIL);
-                    consent.setScope("MAIL_IMPORT_READ");
+                    consent.setScope("https://www.googleapis.com/auth/gmail.readonly");
                     consent.setGrantedAt(OffsetDateTime.now());
                     consent.setRevokedAt(null);
                     return Optional.of(consent);
                 });
         IntegrationConnection activeIntegration = existingIntegration(user(1L), ImportProvider.GMAIL);
-        activeIntegration.setStatus("ACTIVE");
+        activeIntegration.setStatus("NOT_CONNECTED");
         when(integrationConnectionRepository.findTopByUserIdAndProviderOrderByUpdatedAtDesc(1L, ImportProvider.GMAIL))
                 .thenReturn(Optional.empty(), Optional.of(activeIntegration));
         when(integrationConnectionRepository.save(any(IntegrationConnection.class)))
@@ -79,15 +79,15 @@ class ImportConsentServiceImplTest {
 
         assertEquals("GMAIL", response.provider());
         assertEquals("GRANTED", response.status());
-        assertEquals("MAIL_IMPORT_READ", response.scope());
-        assertEquals("ACTIVE", response.integrationStatus());
+        assertEquals("https://www.googleapis.com/auth/gmail.readonly", response.scope());
+        assertEquals("NOT_CONNECTED", response.integrationStatus());
     }
 
     @Test
     void revokeReturnsRevokedStatus() {
         Consent active = new Consent();
         active.setProvider(ImportProvider.GMAIL);
-        active.setScope("MAIL_IMPORT_READ");
+        active.setScope("https://www.googleapis.com/auth/gmail.readonly");
         active.setGrantedAt(OffsetDateTime.parse("2026-03-09T09:00:00Z"));
         active.setRevokedAt(null);
 
@@ -158,13 +158,13 @@ class ImportConsentServiceImplTest {
                 .thenAnswer(invocation -> {
                     Consent consent = new Consent();
                     consent.setProvider(ImportProvider.YANDEX);
-                    consent.setScope("MAIL_IMPORT_READ");
+                    consent.setScope("https://www.googleapis.com/auth/gmail.readonly");
                     consent.setGrantedAt(OffsetDateTime.now());
                     consent.setRevokedAt(null);
                     return Optional.of(consent);
                 });
         IntegrationConnection activeIntegration = existingIntegration(user, ImportProvider.YANDEX);
-        activeIntegration.setStatus("ACTIVE");
+        activeIntegration.setStatus("NOT_CONNECTED");
         when(integrationConnectionRepository.findTopByUserIdAndProviderOrderByUpdatedAtDesc(1L, ImportProvider.YANDEX))
                 .thenReturn(Optional.empty(), Optional.of(activeIntegration));
         when(integrationConnectionRepository.save(any(IntegrationConnection.class)))
@@ -174,7 +174,7 @@ class ImportConsentServiceImplTest {
 
         assertEquals("YANDEX", response.provider());
         assertEquals("GRANTED", response.status());
-        assertEquals("ACTIVE", response.integrationStatus());
+        assertEquals("NOT_CONNECTED", response.integrationStatus());
     }
 
     @Test
@@ -211,7 +211,7 @@ class ImportConsentServiceImplTest {
 
         Consent active = new Consent();
         active.setProvider(ImportProvider.YANDEX);
-        active.setScope("MAIL_IMPORT_READ");
+        active.setScope("https://www.googleapis.com/auth/gmail.readonly");
         active.setGrantedAt(OffsetDateTime.parse("2026-03-09T09:00:00Z"));
         active.setRevokedAt(null);
 
@@ -253,6 +253,7 @@ class ImportConsentServiceImplTest {
     private ImportProviderFeatureFlagsProperties defaultProviderFlags() {
         ImportProviderFeatureFlagsProperties flags = new ImportProviderFeatureFlagsProperties();
         flags.getGmail().setEnabled(true);
+        flags.getGmail().setMailboxEnabled(true);
         flags.getYandex().setEnabled(false);
         flags.getMailRu().setEnabled(false);
         flags.getBankApi().setEnabled(false);

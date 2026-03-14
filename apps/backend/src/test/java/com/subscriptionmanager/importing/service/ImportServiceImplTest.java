@@ -3,23 +3,28 @@ package com.subscriptionmanager.importing.service;
 import com.subscriptionmanager.common.enums.BillingPeriod;
 import com.subscriptionmanager.common.enums.ImportProvider;
 import com.subscriptionmanager.entity.ImportJob;
+import com.subscriptionmanager.entity.ImportItem;
 import com.subscriptionmanager.entity.User;
+import com.subscriptionmanager.exception.ApiException;
 import com.subscriptionmanager.importing.dto.ImportHistoryItemResponse;
 import com.subscriptionmanager.importing.dto.ImportResultResponse;
 import com.subscriptionmanager.importing.dto.ImportStartRequest;
 import com.subscriptionmanager.importing.dto.MailMessageRequest;
 import com.subscriptionmanager.importing.exception.ImportConsentRequiredException;
+import com.subscriptionmanager.importing.exception.MailboxConnectionRequiredException;
+import com.subscriptionmanager.importing.exception.MailboxReauthRequiredException;
 import com.subscriptionmanager.importing.parser.GmailNetflixParser;
-import com.subscriptionmanager.importing.config.ImportProviderFeatureFlagsProperties;
 import com.subscriptionmanager.importing.provider.ImportProviderAvailabilityPolicy;
+import com.subscriptionmanager.importing.config.ImportProviderFeatureFlagsProperties;
 import com.subscriptionmanager.importing.provider.ImportProviderScaffoldRegistry;
+import com.subscriptionmanager.integration.provider.MailImportProvider;
+import com.subscriptionmanager.integration.provider.MailImportProviderRegistry;
 import com.subscriptionmanager.repository.CategoryRepository;
 import com.subscriptionmanager.repository.ConsentRepository;
 import com.subscriptionmanager.repository.ImportItemRepository;
 import com.subscriptionmanager.repository.ImportJobRepository;
 import com.subscriptionmanager.repository.SubscriptionRepository;
 import com.subscriptionmanager.repository.UserRepository;
-import com.subscriptionmanager.exception.ApiException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -59,6 +64,10 @@ class ImportServiceImplTest {
     private UserRepository userRepository;
     @Mock
     private GmailNetflixParser gmailNetflixParser;
+    @Mock
+    private MailImportProviderRegistry mailImportProviderRegistry;
+    @Mock
+    private MailImportProvider mailImportProvider;
 
     private ImportServiceImpl importService;
     private ImportProviderFeatureFlagsProperties providerFlags;
@@ -74,7 +83,8 @@ class ImportServiceImplTest {
                 consentRepository,
                 userRepository,
                 gmailNetflixParser,
-                new ImportProviderAvailabilityPolicy(providerFlags, new ImportProviderScaffoldRegistry())
+                new ImportProviderAvailabilityPolicy(providerFlags, new ImportProviderScaffoldRegistry()),
+                mailImportProviderRegistry
         );
 
         User user = new User();
@@ -83,6 +93,7 @@ class ImportServiceImplTest {
         lenient().when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         lenient().when(consentRepository.existsByUserIdAndProviderAndRevokedAtIsNull(1L, ImportProvider.GMAIL))
                 .thenReturn(true);
+        lenient().when(mailImportProviderRegistry.require(ImportProvider.GMAIL)).thenReturn(mailImportProvider);
 
         lenient().when(importJobRepository.save(any(ImportJob.class))).thenAnswer(invocation -> {
             ImportJob job = invocation.getArgument(0);
@@ -91,6 +102,7 @@ class ImportServiceImplTest {
             }
             return job;
         });
+        lenient().when(importItemRepository.save(any(ImportItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
@@ -99,18 +111,8 @@ class ImportServiceImplTest {
         ImportStartRequest request = new ImportStartRequest(ImportProvider.GMAIL, List.of(message));
 
         when(importItemRepository.existsByJobUserIdAndExternalId(1L, "ext-1")).thenReturn(false);
-        when(gmailNetflixParser.parse(message)).thenReturn(
-                GmailNetflixParser.ParseResult.success(
-                        new GmailNetflixParser.ParsedSubscription(
-                                "Netflix",
-                                BigDecimal.valueOf(9.99),
-                                "USD",
-                                BillingPeriod.MONTHLY,
-                                LocalDate.of(2026, 3, 20),
-                                "Entertainment"
-                        )
-                )
-        );
+        when(gmailNetflixParser.parse(message)).thenReturn(successParseResult());
+        when(subscriptionRepository.existsByUserIdAndImportFingerprintAndStatus(anyLong(), anyString(), any())).thenReturn(false);
         when(subscriptionRepository.existsByUserIdAndServiceNameIgnoreCaseAndAmountAndCurrencyAndBillingPeriodAndNextBillingDateAndStatus(
                 anyLong(), anyString(), any(), anyString(), any(), any(), any()
         )).thenReturn(false);
@@ -121,6 +123,53 @@ class ImportServiceImplTest {
         assertEquals(0, response.skipped());
         assertEquals(0, response.errors());
         assertEquals("COMPLETED", response.status());
+        assertEquals("IMPORTED", response.items().getFirst().status());
+    }
+
+    @Test
+    void syncMailboxCreatesSubscriptionForFetchedMessages() {
+        MailMessageRequest message = message("gmail-msg-1");
+        when(mailImportProvider.fetchMailboxMessages(1L)).thenReturn(
+                new MailImportProvider.MailboxFetchResult(List.of(message), OffsetDateTime.parse("2026-03-12T10:00:00Z"))
+        );
+        when(importItemRepository.existsByJobUserIdAndExternalId(1L, "gmail-msg-1")).thenReturn(false);
+        when(gmailNetflixParser.parse(message)).thenReturn(successParseResult());
+        when(subscriptionRepository.existsByUserIdAndImportFingerprintAndStatus(anyLong(), anyString(), any())).thenReturn(false);
+        when(subscriptionRepository.existsByUserIdAndServiceNameIgnoreCaseAndAmountAndCurrencyAndBillingPeriodAndNextBillingDateAndStatus(
+                anyLong(), anyString(), any(), anyString(), any(), any(), any()
+        )).thenReturn(false);
+
+        ImportResultResponse response = importService.syncMailbox(1L, "GMAIL");
+
+        assertEquals(1, response.created());
+        assertEquals("COMPLETED", response.status());
+        verify(mailImportProvider).markSyncCompleted(1L, OffsetDateTime.parse("2026-03-12T10:00:00Z"));
+    }
+
+    @Test
+    void syncMailboxThrowsBusinessErrorWhenConnectionMissing() {
+        when(mailImportProvider.fetchMailboxMessages(1L))
+                .thenThrow(new MailboxConnectionRequiredException(ImportProvider.GMAIL));
+
+        MailboxConnectionRequiredException exception = assertThrows(
+                MailboxConnectionRequiredException.class,
+                () -> importService.syncMailbox(1L, "GMAIL")
+        );
+
+        assertEquals("real mailbox connection is required before import for provider GMAIL", exception.getMessage());
+    }
+
+    @Test
+    void syncMailboxThrowsBusinessErrorWhenReauthRequired() {
+        when(mailImportProvider.fetchMailboxMessages(1L))
+                .thenThrow(new MailboxReauthRequiredException(ImportProvider.GMAIL));
+
+        MailboxReauthRequiredException exception = assertThrows(
+                MailboxReauthRequiredException.class,
+                () -> importService.syncMailbox(1L, "GMAIL")
+        );
+
+        assertEquals("gmail access expired or was revoked for provider GMAIL. Reconnect Gmail and retry.", exception.getMessage());
     }
 
     @Test
@@ -135,17 +184,17 @@ class ImportServiceImplTest {
         assertEquals(0, response.created());
         assertEquals(1, response.skipped());
         assertEquals(0, response.errors());
-        assertEquals("COMPLETED", response.status());
+        assertEquals("SKIPPED", response.items().getFirst().status());
     }
 
     @Test
-    void startFailsOnBrokenMessage() {
-        MailMessageRequest message = message("ext-broken");
+    void startHandlesUnsupportedTemplate() {
+        MailMessageRequest message = message("ext-unsupported");
         ImportStartRequest request = new ImportStartRequest(ImportProvider.GMAIL, List.of(message));
 
-        when(importItemRepository.existsByJobUserIdAndExternalId(1L, "ext-broken")).thenReturn(false);
+        when(importItemRepository.existsByJobUserIdAndExternalId(1L, "ext-unsupported")).thenReturn(false);
         when(gmailNetflixParser.parse(message)).thenReturn(
-                GmailNetflixParser.ParseResult.error("parser could not extract valid amount")
+                GmailNetflixParser.ParseResult.unsupported("unsupported template: service name was not recognized")
         );
 
         ImportResultResponse response = importService.start(1L, request);
@@ -153,6 +202,26 @@ class ImportServiceImplTest {
         assertEquals(0, response.created());
         assertEquals(0, response.skipped());
         assertEquals(1, response.errors());
+        assertEquals("FAILED", response.status());
+        assertEquals("UNSUPPORTED", response.items().getFirst().status());
+    }
+
+    @Test
+    void startFailsOnParseError() {
+        MailMessageRequest message = message("ext-broken");
+        ImportStartRequest request = new ImportStartRequest(ImportProvider.GMAIL, List.of(message));
+
+        when(importItemRepository.existsByJobUserIdAndExternalId(1L, "ext-broken")).thenReturn(false);
+        when(gmailNetflixParser.parse(message)).thenReturn(
+                GmailNetflixParser.ParseResult.parseError("parser could not extract valid amount")
+        );
+
+        ImportResultResponse response = importService.start(1L, request);
+
+        assertEquals(0, response.created());
+        assertEquals(0, response.skipped());
+        assertEquals(1, response.errors());
+        assertEquals("PARSE_ERROR", response.items().getFirst().status());
         assertEquals("FAILED", response.status());
     }
 
@@ -162,27 +231,15 @@ class ImportServiceImplTest {
         ImportStartRequest request = new ImportStartRequest(ImportProvider.GMAIL, List.of(message));
 
         when(importItemRepository.existsByJobUserIdAndExternalId(1L, "ext-repeat")).thenReturn(false);
-        when(gmailNetflixParser.parse(message)).thenReturn(
-                GmailNetflixParser.ParseResult.success(
-                        new GmailNetflixParser.ParsedSubscription(
-                                "Netflix",
-                                BigDecimal.valueOf(9.99),
-                                "USD",
-                                BillingPeriod.MONTHLY,
-                                LocalDate.of(2026, 3, 20),
-                                "Entertainment"
-                        )
-                )
-        );
-        when(subscriptionRepository.existsByUserIdAndServiceNameIgnoreCaseAndAmountAndCurrencyAndBillingPeriodAndNextBillingDateAndStatus(
-                anyLong(), anyString(), any(), anyString(), any(), any(), any()
-        )).thenReturn(true);
+        when(gmailNetflixParser.parse(message)).thenReturn(successParseResult());
+        when(subscriptionRepository.existsByUserIdAndImportFingerprintAndStatus(anyLong(), anyString(), any())).thenReturn(true);
 
         ImportResultResponse response = importService.start(1L, request);
 
         assertEquals(0, response.created());
         assertEquals(1, response.skipped());
         assertEquals(0, response.errors());
+        assertEquals("SKIPPED", response.items().getFirst().status());
     }
 
     @Test
@@ -223,7 +280,8 @@ class ImportServiceImplTest {
                 consentRepository,
                 userRepository,
                 gmailNetflixParser,
-                new ImportProviderAvailabilityPolicy(providerFlags, new ImportProviderScaffoldRegistry())
+                new ImportProviderAvailabilityPolicy(providerFlags, new ImportProviderScaffoldRegistry()),
+                mailImportProviderRegistry
         );
 
         MailMessageRequest message = message("ext-yandex");
@@ -244,18 +302,8 @@ class ImportServiceImplTest {
 
         when(importItemRepository.existsByJobUserIdAndExternalId(1L, "ext-replay"))
                 .thenReturn(false, true);
-        when(gmailNetflixParser.parse(message)).thenReturn(
-                GmailNetflixParser.ParseResult.success(
-                        new GmailNetflixParser.ParsedSubscription(
-                                "Netflix",
-                                BigDecimal.valueOf(9.99),
-                                "USD",
-                                BillingPeriod.MONTHLY,
-                                LocalDate.of(2026, 3, 20),
-                                "Entertainment"
-                        )
-                )
-        );
+        when(gmailNetflixParser.parse(message)).thenReturn(successParseResult());
+        when(subscriptionRepository.existsByUserIdAndImportFingerprintAndStatus(anyLong(), anyString(), any())).thenReturn(false);
         when(subscriptionRepository.existsByUserIdAndServiceNameIgnoreCaseAndAmountAndCurrencyAndBillingPeriodAndNextBillingDateAndStatus(
                 anyLong(), anyString(), any(), anyString(), any(), any(), any()
         )).thenReturn(false);
@@ -307,21 +355,11 @@ class ImportServiceImplTest {
 
         when(importItemRepository.existsByJobUserIdAndExternalId(1L, "ext-partial-success")).thenReturn(false);
         when(importItemRepository.existsByJobUserIdAndExternalId(1L, "ext-partial-error")).thenReturn(false);
-        when(gmailNetflixParser.parse(successMessage)).thenReturn(
-                GmailNetflixParser.ParseResult.success(
-                        new GmailNetflixParser.ParsedSubscription(
-                                "Netflix",
-                                BigDecimal.valueOf(9.99),
-                                "USD",
-                                BillingPeriod.MONTHLY,
-                                LocalDate.of(2026, 3, 20),
-                                "Entertainment"
-                        )
-                )
-        );
+        when(gmailNetflixParser.parse(successMessage)).thenReturn(successParseResult());
         when(gmailNetflixParser.parse(errorMessage)).thenReturn(
-                GmailNetflixParser.ParseResult.error("parser could not extract next billing date (expected YYYY-MM-DD)")
+                GmailNetflixParser.ParseResult.parseError("parser could not extract next billing date")
         );
+        when(subscriptionRepository.existsByUserIdAndImportFingerprintAndStatus(anyLong(), anyString(), any())).thenReturn(false);
         when(subscriptionRepository.existsByUserIdAndServiceNameIgnoreCaseAndAmountAndCurrencyAndBillingPeriodAndNextBillingDateAndStatus(
                 anyLong(), anyString(), any(), anyString(), any(), any(), any()
         )).thenReturn(false);
@@ -345,9 +383,24 @@ class ImportServiceImplTest {
         );
     }
 
+    private GmailNetflixParser.ParseResult successParseResult() {
+        return GmailNetflixParser.ParseResult.success(
+                new GmailNetflixParser.ParsedSubscription(
+                        "Netflix",
+                        BigDecimal.valueOf(9.99),
+                        "USD",
+                        BillingPeriod.MONTHLY,
+                        LocalDate.of(2026, 3, 20),
+                        "Entertainment",
+                        "netflix.com"
+                )
+        );
+    }
+
     private ImportProviderFeatureFlagsProperties defaultProviderFlags() {
         ImportProviderFeatureFlagsProperties flags = new ImportProviderFeatureFlagsProperties();
         flags.getGmail().setEnabled(true);
+        flags.getGmail().setMailboxEnabled(true);
         flags.getYandex().setEnabled(false);
         flags.getMailRu().setEnabled(false);
         flags.getBankApi().setEnabled(false);

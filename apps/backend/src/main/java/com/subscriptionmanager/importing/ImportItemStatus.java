@@ -1,7 +1,8 @@
 package com.subscriptionmanager.importing;
 
 public enum ImportItemStatus {
-    CREATED,
+    IMPORTED,
     SKIPPED,
-    ERROR
+    UNSUPPORTED,
+    PARSE_ERROR
 }

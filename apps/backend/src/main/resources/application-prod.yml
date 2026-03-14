@@ -11,3 +11,9 @@
 logging:
   level:
     root: INFO
+
+app:
+  integrations:
+    security:
+      oauth-state-cleanup:
+        enabled: true

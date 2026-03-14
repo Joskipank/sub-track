@@ -33,5 +33,7 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
             LocalDate to
     );
 
+    boolean existsByUserIdAndImportFingerprintAndStatus(Long userId, String importFingerprint, SubscriptionStatus status);
+
     Optional<Subscription> findByIdAndUserId(Long id, Long userId);
 }
