@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
-import { Button, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, Button, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { ApiError } from "../api/httpClient";
 import { categoryApi } from "../api/categoryApi";
+import { recommendationApi } from "../api/recommendationApi";
 import { subscriptionApi } from "../api/subscriptionApi";
 import { useI18n } from "../context/SettingsContext";
 import type { Category } from "../types/category";
+import type { Recommendation } from "../types/recommendation";
 import type {
   BillingPeriod,
   Subscription,
@@ -45,7 +47,14 @@ const SubscriptionsScreen = () => {
   const [form, setForm] = useState<SubscriptionRequest>(initialForm);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRecommendationsLoading, setIsRecommendationsLoading] = useState(false);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const currentCategoryName = useMemo(
+    () => categories.find((item) => item.id === form.categoryId)?.name ?? tr("none"),
+    [categories, form.categoryId, tr]
+  );
 
   const formatBillingPeriod = useCallback(
     (period: BillingPeriod) => {
@@ -202,9 +211,35 @@ const SubscriptionsScreen = () => {
     }
   };
 
+  useEffect(() => {
+    if (!selectedSubscription?.category) {
+      setRecommendations([]);
+      return;
+    }
+
+    void (async () => {
+      try {
+        setIsRecommendationsLoading(true);
+        const response = await recommendationApi.getByCategory(selectedSubscription.category ?? "");
+        setRecommendations(response);
+      } catch (recommendationError) {
+        if (recommendationError instanceof ApiError && recommendationError.status === 404) {
+          setRecommendations([]);
+          return;
+        }
+        setError(
+          recommendationError instanceof Error
+            ? recommendationError.message
+            : tr("failedLoadDetails")
+        );
+      } finally {
+        setIsRecommendationsLoading(false);
+      }
+    })();
+  }, [selectedSubscription?.category, tr]);
+
   return (
-    <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>{tr("subscriptionsTitle")}</Text>
       {isLoading ? <Text style={styles.meta}>{tr("loading")}</Text> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -356,6 +391,21 @@ const SubscriptionsScreen = () => {
           </Text>
           <Text style={styles.meta}>{tr("period")}: {selectedSubscription.billingPeriod}</Text>
           <Text style={styles.meta}>{tr("status")}: {selectedSubscription.status}</Text>
+
+          <Text style={styles.sectionTitle}>Recommendations by category</Text>
+          <Text style={styles.meta}>
+            Category: {selectedSubscription.category || tr("none")}
+          </Text>
+          {isRecommendationsLoading ? <Text style={styles.meta}>{tr("loading")}</Text> : null}
+          {!isRecommendationsLoading && recommendations.length === 0 ? (
+            <Text style={styles.meta}>No recommendations for this category.</Text>
+          ) : null}
+          {recommendations.map((item, index) => (
+            <View key={`${item.currentService}-${item.alternativeService}-${index}`} style={styles.card}>
+              <Text style={styles.cardTitle}>{`${item.currentService} -> ${item.alternativeService}`}</Text>
+              <Text style={styles.meta}>{item.reason}</Text>
+            </View>
+          ))}
         </View>
       ) : null}
 
