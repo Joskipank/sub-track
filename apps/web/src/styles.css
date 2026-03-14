@@ -367,6 +367,72 @@ button {
   font-size: 0.94rem;
 }
 
+.import-page {
+  display: grid;
+  gap: 18px;
+}
+
+.import-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.import-actions {
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.import-actions .button {
+  width: auto;
+  min-width: 180px;
+}
+
+.import-banner {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(35, 102, 188, 0.12);
+}
+
+.import-banner--success {
+  background: rgba(236, 247, 255, 0.9);
+  color: #21588e;
+}
+
+.import-banner--error {
+  background: rgba(255, 243, 243, 0.92);
+  color: #a13d3d;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.status-chip--imported {
+  background: rgba(95, 191, 129, 0.18);
+  color: #277346;
+}
+
+.status-chip--skipped {
+  background: rgba(255, 201, 99, 0.2);
+  color: #986414;
+}
+
+.status-chip--unsupported,
+.status-chip--parse_error {
+  background: rgba(232, 111, 111, 0.16);
+  color: #9b4141;
+}
+
 .inline-actions {
   display: flex;
   gap: 14px;
@@ -607,6 +673,21 @@ button {
     text-overflow: ellipsis;
   }
 
+<<<<<<< Updated upstream
+=======
+  .usage-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .import-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .usage-bar-row {
+    grid-template-columns: 120px minmax(0, 1fr) 36px;
+  }
+
+>>>>>>> Stashed changes
   .auth-card {
     grid-template-columns: 1fr;
     width: min(100%, 560px);

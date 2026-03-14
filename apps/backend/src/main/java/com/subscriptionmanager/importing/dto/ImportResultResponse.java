@@ -13,6 +13,7 @@ public record ImportResultResponse(
         int errors,
         OffsetDateTime startedAt,
         OffsetDateTime finishedAt,
-        List<ImportErrorItemResponse> errorItems
+        List<ImportErrorItemResponse> errorItems,
+        List<ImportItemResultResponse> items
 ) {
 }

@@ -8,6 +8,7 @@ import java.util.List;
 
 public interface ImportService {
     ImportResultResponse start(Long userId, ImportStartRequest request);
+    ImportResultResponse syncMailbox(Long userId, String providerRaw);
     List<ImportHistoryItemResponse> history(Long userId);
     ImportResultResponse getById(Long userId, Long jobId);
 }

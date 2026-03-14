@@ -48,6 +48,9 @@ public class Subscription {
     @Column(nullable = false)
     private SourceType sourceType;
 
+    @Column(length = 64)
+    private String importFingerprint;
+
     @Column(nullable = false)
     private OffsetDateTime createdAt;
 
@@ -144,6 +147,14 @@ public class Subscription {
 
     public void setSourceType(SourceType sourceType) {
         this.sourceType = sourceType;
+    }
+
+    public String getImportFingerprint() {
+        return importFingerprint;
+    }
+
+    public void setImportFingerprint(String importFingerprint) {
+        this.importFingerprint = importFingerprint;
     }
 
     public OffsetDateTime getCreatedAt() {

@@ -19,12 +19,11 @@ import java.util.Optional;
 
 @Service
 public class ImportConsentServiceImpl implements ImportConsentService {
-    private static final String CONSENT_SCOPE = "MAIL_IMPORT_READ";
+    private static final String CONSENT_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
     private static final String CONSENT_STATUS_GRANTED = "GRANTED";
     private static final String CONSENT_STATUS_REVOKED = "REVOKED";
     private static final String CONSENT_STATUS_NOT_GRANTED = "NOT_GRANTED";
     private static final String INTEGRATION_STATUS_NOT_CONNECTED = "NOT_CONNECTED";
-    private static final String INTEGRATION_STATUS_ACTIVE = "ACTIVE";
     private static final String INTEGRATION_STATUS_REVOKED = "REVOKED";
 
     private final ConsentRepository consentRepository;
@@ -61,7 +60,7 @@ public class ImportConsentServiceImpl implements ImportConsentService {
             consentRepository.save(consent);
         }
 
-        upsertIntegrationStatus(user, provider, INTEGRATION_STATUS_ACTIVE);
+        upsertIntegrationStatus(user, provider, null);
         return status(userId, provider.name());
     }
 
@@ -78,7 +77,24 @@ public class ImportConsentServiceImpl implements ImportConsentService {
             consentRepository.saveAll(activeConsents);
         }
 
-        userRepository.findById(userId).ifPresent(user -> upsertIntegrationStatus(user, provider, INTEGRATION_STATUS_REVOKED));
+        userRepository.findById(userId).ifPresent(user -> {
+            IntegrationConnection connection = integrationConnectionRepository
+                    .findTopByUserIdAndProviderOrderByUpdatedAtDesc(user.getId(), provider)
+                    .orElseGet(() -> {
+                        IntegrationConnection created = new IntegrationConnection();
+                        created.setUser(user);
+                        created.setProvider(provider);
+                        created.setCreatedAt(OffsetDateTime.now());
+                        return created;
+                    });
+
+            connection.setStatus(INTEGRATION_STATUS_REVOKED);
+            connection.setEncryptedAccessToken(null);
+            connection.setEncryptedRefreshToken(null);
+            connection.setTokenExpiresAt(null);
+            connection.setUpdatedAt(OffsetDateTime.now());
+            integrationConnectionRepository.save(connection);
+        });
         return status(userId, provider.name());
     }
 
@@ -126,7 +142,11 @@ public class ImportConsentServiceImpl implements ImportConsentService {
                     return created;
                 });
 
-        connection.setStatus(status);
+        if (status != null) {
+            connection.setStatus(status);
+        } else if (connection.getStatus() == null || connection.getStatus().isBlank()) {
+            connection.setStatus(INTEGRATION_STATUS_NOT_CONNECTED);
+        }
         connection.setUpdatedAt(OffsetDateTime.now());
         integrationConnectionRepository.save(connection);
     }

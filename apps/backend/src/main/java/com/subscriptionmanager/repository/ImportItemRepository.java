@@ -7,5 +7,5 @@ import java.util.List;
 
 public interface ImportItemRepository extends JpaRepository<ImportItem, Long> {
     boolean existsByJobUserIdAndExternalId(Long userId, String externalId);
-    List<ImportItem> findByJobId(Long jobId);
+    List<ImportItem> findByJobIdOrderByIdAsc(Long jobId);
 }

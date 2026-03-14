@@ -28,6 +28,12 @@ public class ImportController {
         return importService.start(userId, request);
     }
 
+    @PostMapping("/{provider}/sync")
+    public ImportResultResponse sync(@PathVariable String provider) {
+        Long userId = currentUserService.requireCurrentUserId();
+        return importService.syncMailbox(userId, provider);
+    }
+
     @GetMapping
     public List<ImportHistoryItemResponse> history() {
         Long userId = currentUserService.requireCurrentUserId();
