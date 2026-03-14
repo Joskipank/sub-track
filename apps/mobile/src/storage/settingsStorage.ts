@@ -1,10 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { AppLanguage, AppSettings } from "../types/settings";
+import type { AppLanguage, AppSettings, AppTheme } from "../types/settings";
 
 const SETTINGS_KEY = "subtrack_settings";
 
 const defaultSettings: AppSettings = {
-  language: "en"
+  language: "en",
+  theme: "dark"
 };
 
 export const settingsStorage = {
@@ -27,6 +28,12 @@ export const settingsStorage = {
   setLanguage: async (language: AppLanguage) => {
     const current = await settingsStorage.getSettings();
     const next = { ...current, language };
+    await settingsStorage.setSettings(next);
+    return next;
+  },
+  setTheme: async (theme: AppTheme) => {
+    const current = await settingsStorage.getSettings();
+    const next = { ...current, theme };
     await settingsStorage.setSettings(next);
     return next;
   }

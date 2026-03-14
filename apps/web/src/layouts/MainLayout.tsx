@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
 import { useLanguage } from "../i18n/LanguageProvider";
 
 const iconProps = {
@@ -87,9 +88,13 @@ type NavItem = {
 
 const MainLayout = () => {
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const accountEmail = user?.email ?? "No email";
+  const accountLogin = user?.email?.split("@")[0] ?? "Account";
+  const accountMark = accountLogin.charAt(0).toUpperCase();
 
   const navItems: NavItem[] = [
-    { to: "/", label: t("nav_dashboard"), icon: <DashboardIcon /> },
+    { to: "/dashboard", label: t("nav_dashboard"), icon: <DashboardIcon /> },
     { to: "/subscriptions", label: t("nav_subscriptions"), icon: <SubscriptionIcon /> },
     { to: "/upcoming", label: t("nav_upcoming"), icon: <UpcomingIcon /> },
     { to: "/reminders", label: t("nav_reminders"), icon: <ReminderIcon /> },
@@ -102,10 +107,10 @@ const MainLayout = () => {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar__brand">
-          <span className="sidebar__brand-mark">S</span>
+          <span className="sidebar__brand-mark">{accountMark}</span>
           <div>
-            <strong>SubTrack</strong>
-            <p>Subscription control center</p>
+            <strong>{accountLogin}</strong>
+            <p>{accountEmail}</p>
           </div>
         </div>
 

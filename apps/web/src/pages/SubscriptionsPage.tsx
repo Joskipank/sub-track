@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { categoryApi } from "../api/categoryApi";
 import { notificationApi } from "../api/notificationApi";
+import { recommendationApi } from "../api/recommendationApi";
 import { subscriptionApi } from "../api/subscriptionApi";
 import { useLanguage } from "../i18n/LanguageProvider";
 import type { Category } from "../types/category";
 import type { Notification } from "../types/notification";
+import type { Recommendation } from "../types/recommendation";
 import type {
   BillingPeriod,
   Subscription,
@@ -87,6 +89,7 @@ const SubscriptionsPage = () => {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [upcoming, setUpcoming] = useState<UpcomingSubscription[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [form, setForm] = useState<FormState>(initialFormState);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | SubscriptionStatus>("ALL");
@@ -95,6 +98,8 @@ const SubscriptionsPage = () => {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRecommendationsLoading, setIsRecommendationsLoading] = useState(false);
+  const [recommendationsError, setRecommendationsError] = useState("");
 
   const loadPage = async () => {
     setError("");
@@ -146,6 +151,54 @@ const SubscriptionsPage = () => {
       return new Date(left.nextBillingDate).getTime() - new Date(right.nextBillingDate).getTime();
     });
   }, [query, sortBy, statusFilter, subscriptions]);
+
+  const selectedCategoryName = useMemo(
+    () => categories.find((item) => item.id === form.categoryId)?.name ?? "",
+    [categories, form.categoryId]
+  );
+
+  useEffect(() => {
+    let canceled = false;
+
+    if (!selectedCategoryName) {
+      setRecommendations([]);
+      setRecommendationsError("");
+      setIsRecommendationsLoading(false);
+      return () => {
+        canceled = true;
+      };
+    }
+
+    setIsRecommendationsLoading(true);
+    setRecommendationsError("");
+
+    void recommendationApi
+      .listByCategory(selectedCategoryName)
+      .then((response) => {
+        if (!canceled) {
+          setRecommendations(response);
+        }
+      })
+      .catch((loadError) => {
+        if (!canceled) {
+          setRecommendations([]);
+          setRecommendationsError(
+            loadError instanceof Error
+              ? loadError.message
+              : t("subscriptions_recommendations_load_error")
+          );
+        }
+      })
+      .finally(() => {
+        if (!canceled) {
+          setIsRecommendationsLoading(false);
+        }
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [selectedCategoryName, t]);
 
   const resetForm = () => {
     setForm(initialFormState);
@@ -288,7 +341,7 @@ const SubscriptionsPage = () => {
 
           <p className="label">
             {t("subscriptions_category")}:{" "}
-            {categories.find((item) => item.id === form.categoryId)?.name ?? t("subscriptions_no_category")}
+            {selectedCategoryName || t("subscriptions_no_category")}
           </p>
           <div className="pill-row">
             <button
@@ -321,6 +374,35 @@ const SubscriptionsPage = () => {
             ) : null}
           </div>
         </form>
+      </section>
+
+      <section className="section">
+        <h2 className="section__title">{t("subscriptions_recommendations_title")}</h2>
+        {!selectedCategoryName ? (
+          <p>{t("subscriptions_recommendations_select_category")}</p>
+        ) : isRecommendationsLoading ? (
+          <p>{t("common_loading")}</p>
+        ) : recommendationsError ? (
+          <p className="form-message form-message--error">{recommendationsError}</p>
+        ) : recommendations.length ? (
+          <div className="stack-list">
+            {recommendations.map((item, index) => (
+              <div
+                key={`${item.category}-${item.currentService}-${item.alternativeService}-${index}`}
+                className="card-row"
+              >
+                <strong>
+                  {item.currentService}
+                  {" -> "}
+                  {item.alternativeService}
+                </strong>
+                <span>{item.reason}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p>{t("subscriptions_recommendations_empty")}</p>
+        )}
       </section>
 
       <section className="section">
