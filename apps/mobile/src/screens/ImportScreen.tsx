@@ -1,355 +1,432 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-
-import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-
-import { consentApi, type ImportConsentStatus } from "../api/consentApi";
-import { ApiError } from "../api/httpClient";
+import {
+  AppState,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
+} from "react-native";
+import { consentApi } from "../api/consentApi";
+import { integrationApi } from "../api/integrationApi";
 import { importApi } from "../api/importApi";
-import type { ImportHistoryItem, ImportResult, MailMessageRequest } from "../types/import";
-import { useI18n } from "../context/SettingsContext";
 import AppButton from "../components/AppButton";
+import { useI18n } from "../context/SettingsContext";
 import type { AppPalette } from "../theme/theme";
+import type {
+  ImportConsentStatus,
+  ImportHistoryItem,
+  ImportItemResult,
+  ImportResult,
+  MailMessageRequest
+} from "../types/import";
+import type { IntegrationConnection } from "../types/integration";
+import {
+  dedupeImportItems,
+  formatImportDateTime,
+  getImportErrorMessage,
+  getImportItemSummary,
+  getStructuredApiError,
+  parseGmailCallbackUrl
+} from "../utils/importMailbox";
 
-const IMPORT_PROVIDER = "GMAIL";
+const PROVIDER = "GMAIL";
 
-type ImportConsentErrorPayload = {
-  code?: string;
-  provider?: string;
-  message?: string;
-};
-
-const getImportConsentError = (error: ApiError): ImportConsentErrorPayload | null => {
-  const details = error.details as ImportConsentErrorPayload | undefined;
-  if (error.status === 403 && details?.code === "IMPORT_CONSENT_REQUIRED") {
-    return details;
-  }
-
-  return null;
+type Notice = {
+  kind: "success" | "error";
+  text: string;
 };
 
 const ImportScreen = () => {
   const { colors } = useI18n();
   const styles = createStyles(colors);
-  const [history, setHistory] = useState<ImportHistoryItem[]>([]);
-  const [details, setDetails] = useState<ImportResult | null>(null);
-
   const [consent, setConsent] = useState<ImportConsentStatus | null>(null);
-  const [isConsentLoading, setIsConsentLoading] = useState(true);
-  const [isConsentUpdating, setIsConsentUpdating] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isConsentLoading, setIsConsentLoading] = useState(true);
-  const [isConsentUpdating, setIsConsentUpdating] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [integration, setIntegration] = useState<IntegrationConnection | null>(null);
+  const [history, setHistory] = useState<ImportHistoryItem[]>([]);
+  const [result, setResult] = useState<ImportResult | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
-  const [subject, setSubject] = useState("Subscription renewal");
-  const [fromEmail, setFromEmail] = useState("billing@example.com");
-  const [pendingRetryPayload, setPendingRetryPayload] = useState<MailMessageRequest | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [busyAction, setBusyAction] = useState<"connect" | "sync" | "disconnect" | "details" | null>(null);
+  const [manualFrom, setManualFrom] = useState("");
+  const [manualSubject, setManualSubject] = useState("");
+  const [manualBody, setManualBody] = useState("");
+  const [isManualSubmitting, setIsManualSubmitting] = useState(false);
 
-  const hasGrantedConsent = consentStatus?.status === "GRANTED";
-  const canSubmit = useMemo(
-    () => Boolean(message.trim() && subject.trim() && fromEmail.trim() && hasGrantedConsent),
-    [fromEmail, hasGrantedConsent, message, subject]
-  );
+  const loadImportPage = useCallback(async () => {
+    setError(null);
+    setIsLoading(true);
 
-  const loadHistory = useCallback(async () => {
     try {
-      setIsLoading(true);
-      setError(null);
-      const response = await importApi.getHistory();
-      setHistory(response);
-    } catch (historyError) {
-      setError(
-        historyError instanceof ApiError && historyError.status === 400
-          ? "Invalid import history request."
-          : historyError instanceof Error
-            ? historyError.message
-            : "Failed to load import history."
-      );
+      const [consentResponse, integrationResponse, historyResponse] = await Promise.all([
+        consentApi.getImportConsentStatus(PROVIDER),
+        integrationApi.getStatus(PROVIDER),
+        importApi.getHistory()
+      ]);
+
+      setConsent(consentResponse);
+      setIntegration(integrationResponse);
+      setHistory(historyResponse);
+    } catch (loadError) {
+      setError(getImportErrorMessage(loadError));
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const loadConsentStatus = useCallback(async () => {
-    try {
-      setIsConsentLoading(true);
-      const status = await consentApi.getImportConsentStatus(IMPORT_PROVIDER);
-      setConsentStatus(status);
-    } catch (consentError) {
-      setError(consentError instanceof Error ? consentError.message : "Failed to load import consent status.");
-    } finally {
-      setIsConsentLoading(false);
-    }
-  }, []);
+  useEffect(() => {
+    void loadImportPage();
+  }, [loadImportPage]);
 
-  const runImport = useCallback(
-    async (payload: MailMessageRequest) => {
-      const result = await importApi.start({
-        provider: IMPORT_PROVIDER,
-        messages: [payload]
-      });
-      setDetails(result);
-      setPendingRetryPayload(null);
-      await loadHistory();
-    },
-    [loadHistory]
-  );
-
-  const onGrantConsent = useCallback(async () => {
-    try {
-      setError(null);
-      setIsConsentUpdating(true);
-      const status = await consentApi.grantImportConsent(IMPORT_PROVIDER);
-      setConsentStatus(status);
-    } catch (grantError) {
-      setError(grantError instanceof Error ? grantError.message : "Failed to grant import consent.");
-    } finally {
-      setIsConsentUpdating(false);
-    }
-  }, []);
-
-  const onRevokeConsent = useCallback(async () => {
-    try {
-      setError(null);
-      setIsConsentUpdating(true);
-      const status = await consentApi.revokeImportConsent(IMPORT_PROVIDER);
-      setConsentStatus(status);
-      setPendingRetryPayload(null);
-    } catch (revokeError) {
-      setError(revokeError instanceof Error ? revokeError.message : "Failed to revoke import consent.");
-    } finally {
-      setIsConsentUpdating(false);
-    }
-  }, []);
-
-  const handleImportError = useCallback((startError: unknown, payload: MailMessageRequest) => {
-    if (startError instanceof ApiError) {
-      const consentError = getImportConsentError(startError);
-      if (consentError) {
-        setPendingRetryPayload(payload);
-        setConsentStatus((prev) => ({
-          provider: IMPORT_PROVIDER,
-          status: "NOT_GRANTED",
-          scope: prev?.scope,
-          grantedAt: prev?.grantedAt ?? null,
-          revokedAt: prev?.revokedAt ?? null,
-          integrationStatus: prev?.integrationStatus
-        }));
-        setError(consentError.message ?? "Import consent is required before import for provider GMAIL.");
+  useEffect(() => {
+    const handleUrl = ({ url }: { url: string }) => {
+      const { gmail, reason } = parseGmailCallbackUrl(url);
+      if (!gmail) {
         return;
       }
+
+      if (gmail === "connected") {
+        setNotice({
+          kind: "success",
+          text: "Gmail is connected. You can start mailbox sync now."
+        });
+      } else {
+        setNotice({
+          kind: "error",
+          text: reason ? `Gmail connection failed: ${reason}.` : "Gmail connection failed."
+        });
+      }
+
+      setBusyAction(null);
+      void loadImportPage();
+    };
+
+    const appStateSubscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        setBusyAction(null);
+        void loadImportPage();
+      }
+    });
+
+    const linkingSubscription = Linking.addEventListener("url", handleUrl);
+
+    return () => {
+      appStateSubscription.remove();
+      linkingSubscription.remove();
+    };
+  }, [loadImportPage]);
+
+  const isConnected = integration?.status === "ACTIVE";
+  const needsReauth = integration?.status === "REAUTH_REQUIRED";
+  const canSync = consent?.status === "GRANTED" && isConnected;
+  const canRunManualImport = Boolean(
+    manualFrom.trim() && manualSubject.trim() && manualBody.trim() && consent?.status === "GRANTED"
+  );
+
+  const connectionHint = useMemo(() => {
+    if (needsReauth) {
+      return "Google access expired or was revoked. Reconnect Gmail before the next sync.";
     }
+    if (isConnected) {
+      return "Mailbox sync fetches billing emails from Gmail with read-only access and maps them into SubTrack imports.";
+    }
+    if (consent?.status === "GRANTED") {
+      return "Consent exists, but Gmail is not connected yet. Finish OAuth to enable mailbox sync.";
+    }
+    return "Connect Gmail to grant explicit consent and import billing emails end-to-end.";
+  }, [consent?.status, isConnected, needsReauth]);
 
-    setError(
-      startError instanceof ApiError && startError.status === 400
-        ? "Import payload validation failed."
-        : startError instanceof Error
-          ? startError.message
-          : "Failed to start import."
-    );
-  }, []);
+  const visibleItems: ImportItemResult[] = useMemo(
+    () => dedupeImportItems(result?.items ?? []),
+    [result?.items]
+  );
 
-  useEffect(() => {
-    void loadHistory();
-    void loadConsentStatus();
-  }, [loadConsentStatus, loadHistory]);
+  const handleConnect = async () => {
+    setError(null);
+    setNotice(null);
+    setBusyAction("connect");
 
-  const loadConsent = useCallback(async () => {
     try {
-      setIsConsentLoading(true);
-      const response = await consentApi.getImportConsentStatus("GMAIL");
-      setConsent(response);
-    } catch (loadError) {
-      setError(loadError instanceof ApiError ? loadError.message : "Failed to load consent status.");
-    } finally {
-      setIsConsentLoading(false);
+      const response = await integrationApi.startOAuth(PROVIDER);
+      const canOpen = await Linking.canOpenURL(response.authorizationUrl);
+
+      if (!canOpen) {
+        throw new Error("Unable to open Gmail authorization page.");
+      }
+
+      await Linking.openURL(response.authorizationUrl);
+    } catch (connectError) {
+      setError(getImportErrorMessage(connectError));
+      setBusyAction(null);
     }
-  }, []);
+  };
 
-  useEffect(() => {
-    void loadConsent();
-  }, [loadConsent]);
+  const handleDisconnect = async () => {
+    setError(null);
+    setNotice(null);
+    setBusyAction("disconnect");
 
-  const onStartImport = async () => {
-    if (!hasGrantedConsent) {
-      setError("Import consent is required before import. Tap \"Grant consent\" to continue.");
+    try {
+      const response = await integrationApi.disconnect(PROVIDER);
+      setIntegration(response);
+      setConsent((previous) =>
+        previous
+          ? {
+              ...previous,
+              status: "REVOKED",
+              integrationStatus: response.status
+            }
+          : previous
+      );
+      setResult(null);
+      await loadImportPage();
+      setNotice({
+        kind: "success",
+        text: "Gmail was disconnected and consent was revoked."
+      });
+    } catch (disconnectError) {
+      setError(getImportErrorMessage(disconnectError));
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleSync = async () => {
+    setError(null);
+    setNotice(null);
+    setBusyAction("sync");
+
+    try {
+      const syncResult = await importApi.syncMailbox(PROVIDER);
+      setResult(syncResult);
+      await loadImportPage();
+      setNotice({
+        kind: "success",
+        text: `Mailbox sync finished with status ${syncResult.status}.`
+      });
+    } catch (syncError) {
+      const structured = getStructuredApiError(syncError);
+      if (structured?.code === "MAILBOX_REAUTH_REQUIRED") {
+        setNotice({
+          kind: "error",
+          text: structured.message ?? "Gmail access expired. Reconnect Gmail and retry."
+        });
+      } else if (structured?.code === "MAILBOX_CONNECTION_REQUIRED") {
+        setNotice({
+          kind: "error",
+          text: structured.message ?? "Connect Gmail before mailbox sync."
+        });
+      }
+      setError(getImportErrorMessage(syncError));
+      await loadImportPage();
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleLoadDetails = async (id: number) => {
+    setError(null);
+    setBusyAction("details");
+
+    try {
+      const details = await importApi.getById(id);
+      setResult(details);
+    } catch (detailsError) {
+      setError(getImportErrorMessage(detailsError));
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleManualImport = async () => {
+    if (!canRunManualImport) {
+      setError("Fill sender, subject and body before manual import.");
       return;
     }
 
     const payload: MailMessageRequest = {
       externalId: `manual-${Date.now()}`,
-      from: fromEmail.trim(),
-      subject: subject.trim(),
-      body: message.trim(),
+      from: manualFrom.trim(),
+      subject: manualSubject.trim(),
+      body: manualBody.trim(),
       receivedAt: new Date().toISOString()
     };
 
+    setError(null);
+    setNotice(null);
+    setIsManualSubmitting(true);
+
     try {
-      if (consent?.status !== "GRANTED") {
-        setError("Grant consent before import.");
-        return;
-      }
-      setError(null);
-      setIsSubmitting(true);
-      await runImport(payload);
-    } catch (startError) {
-      handleImportError(startError, payload);
+      const manualResult = await importApi.start({
+        provider: PROVIDER,
+        messages: [payload]
+      });
+      setResult(manualResult);
+      setManualFrom("");
+      setManualSubject("");
+      setManualBody("");
+      await loadImportPage();
+      setNotice({
+        kind: "success",
+        text: `Manual import finished with status ${manualResult.status}.`
+      });
+    } catch (manualError) {
+      setError(getImportErrorMessage(manualError));
     } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const onGrantAndRetry = async () => {
-    if (!pendingRetryPayload) {
-      await onGrantConsent();
-      return;
-    }
-
-    try {
-      setError(null);
-      setIsConsentUpdating(true);
-      setIsSubmitting(true);
-      const status = await consentApi.grantImportConsent(IMPORT_PROVIDER);
-      setConsentStatus(status);
-      await runImport(pendingRetryPayload);
-    } catch (retryError) {
-      setError(retryError instanceof Error ? retryError.message : "Failed to grant consent and retry import.");
-    } finally {
-      setIsConsentUpdating(false);
-      setIsSubmitting(false);
-    }
-  };
-
-  const onGrantConsent = async () => {
-    try {
-      setError(null);
-      setIsConsentUpdating(true);
-      const response = await consentApi.grantImportConsent("GMAIL");
-      setConsent(response);
-    } catch (updateError) {
-      setError(updateError instanceof ApiError ? updateError.message : "Failed to grant consent.");
-    } finally {
-      setIsConsentUpdating(false);
-    }
-  };
-
-  const onRevokeConsent = async () => {
-    try {
-      setError(null);
-      setIsConsentUpdating(true);
-      const response = await consentApi.revokeImportConsent("GMAIL");
-      setConsent(response);
-    } catch (updateError) {
-      setError(updateError instanceof ApiError ? updateError.message : "Failed to revoke consent.");
-    } finally {
-      setIsConsentUpdating(false);
-    }
-  };
-
-  const onLoadDetails = async (id: number) => {
-    try {
-      setError(null);
-      const result = await importApi.getById(id);
-      setDetails(result);
-    } catch (detailsError) {
-      setError(
-        detailsError instanceof ApiError && detailsError.status === 400
-          ? "Invalid import id."
-          : detailsError instanceof Error
-            ? detailsError.message
-            : "Failed to load import details."
-      );
+      setIsManualSubmitting(false);
     }
   };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Import</Text>
-      {isLoading ? <Text style={styles.meta}>Loading history...</Text> : null}
+      <Text style={styles.subtitle}>
+        Connect Gmail with read-only access, sync billing emails, and review which subscriptions were imported,
+        skipped or failed to parse.
+      </Text>
+
+      {notice ? (
+        <View style={[styles.banner, notice.kind === "success" ? styles.bannerSuccess : styles.bannerError]}>
+          <Text style={styles.bannerText}>{notice.text}</Text>
+        </View>
+      ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Import consent</Text>
+        <Text style={styles.sectionTitle}>Gmail mailbox import</Text>
 
-        {isConsentLoading ? <Text style={styles.meta}>Loading consent...</Text> : null}
-        <Text style={styles.meta}>Status: {consent?.status ?? "UNKNOWN"}</Text>
-        <View style={styles.actions}>
-          <AppButton
-            title={isConsentUpdating ? "Granting..." : "Grant consent"}
-            onPress={() => void onGrantConsent()}
-            disabled={isConsentLoading || isConsentUpdating}
-          />
-          <AppButton
-            title={isConsentUpdating ? "Revoking..." : "Revoke consent"}
-            variant="ghost"
-            onPress={() => void onRevokeConsent()}
-            disabled={isConsentLoading || isConsentUpdating}
-          />
+        <View style={styles.card}>
+          <Text style={styles.itemTitle}>Consent</Text>
+          <Text style={styles.meta}>Status: {consent?.status ?? (isLoading ? "Loading..." : "Unknown")}</Text>
+          <Text style={styles.meta}>Scope: {consent?.scope ?? "Not granted yet"}</Text>
+          <Text style={styles.meta}>Granted: {formatImportDateTime(consent?.grantedAt)}</Text>
         </View>
 
+        <View style={styles.card}>
+          <Text style={styles.itemTitle}>Connection</Text>
+          <Text style={styles.meta}>
+            Status: {integration?.status ?? (isLoading ? "Loading..." : "NOT_CONNECTED")}
+          </Text>
+          <Text style={styles.meta}>Mailbox: {integration?.externalAccountEmail ?? "Not connected"}</Text>
+          <Text style={styles.meta}>Last sync: {formatImportDateTime(integration?.lastSyncAt)}</Text>
+          {integration?.lastErrorMessage ? (
+            <Text style={styles.meta}>Last Gmail error: {integration.lastErrorMessage}</Text>
+          ) : null}
+        </View>
+
+        <Text style={styles.meta}>{connectionHint}</Text>
+
+        <View style={styles.actions}>
+          <AppButton
+            title={busyAction === "connect" ? "Redirecting..." : isConnected ? "Reconnect Gmail" : "Connect Gmail"}
+            onPress={() => void handleConnect()}
+            disabled={busyAction !== null}
+          />
+          <AppButton
+            title={busyAction === "sync" ? "Syncing..." : "Sync mailbox"}
+            variant="ghost"
+            onPress={() => void handleSync()}
+            disabled={busyAction !== null || !canSync}
+          />
+          <AppButton
+            title={busyAction === "disconnect" ? "Disconnecting..." : "Disconnect"}
+            variant="ghost"
+            onPress={() => void handleDisconnect()}
+            disabled={busyAction !== null || (!integration?.id && !consent)}
+          />
+        </View>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Start import (MVP)</Text>
+        <Text style={styles.sectionTitle}>Manual import fallback</Text>
+        <Text style={styles.meta}>
+          This keeps current mobile behavior intact and uses the same backend import pipeline as mailbox sync.
+        </Text>
         <TextInput
           style={styles.input}
-          placeholder="From"
+          placeholder="Sender email"
           placeholderTextColor={colors.textMuted}
-          value={fromEmail}
-          onChangeText={setFromEmail}
+          value={manualFrom}
+          onChangeText={setManualFrom}
         />
         <TextInput
           style={styles.input}
-          placeholder="Subject"
+          placeholder="Email subject"
           placeholderTextColor={colors.textMuted}
-          value={subject}
-          onChangeText={setSubject}
+          value={manualSubject}
+          onChangeText={setManualSubject}
         />
         <TextInput
           style={[styles.input, styles.textArea]}
           multiline
           placeholder="Email body"
           placeholderTextColor={colors.textMuted}
-          value={message}
-          onChangeText={setMessage}
+          value={manualBody}
+          onChangeText={setManualBody}
         />
-
         <AppButton
-          disabled={!canSubmit || isSubmitting}
           fullWidth
-
-          title={isSubmitting ? "Starting..." : "Start import"}
-          onPress={() => void onStartImport()}
+          title={isManualSubmitting ? "Importing..." : "Start manual import"}
+          onPress={() => void handleManualImport()}
+          disabled={!canRunManualImport || isManualSubmitting || busyAction !== null}
         />
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>History</Text>
-        {history.length === 0 ? <Text>No import jobs.</Text> : null}
+        {history.length === 0 ? <Text style={styles.meta}>{isLoading ? "Loading..." : "No import jobs."}</Text> : null}
         {history.map((item) => (
           <View key={item.id} style={styles.card}>
-            <Text style={styles.itemTitle}>#{item.id}</Text>
-            <Text style={styles.meta}>
+            <Text style={styles.itemTitle}>
               {item.provider} | {item.status}
             </Text>
-            <AppButton title="Details" variant="ghost" onPress={() => void onLoadDetails(item.id)} />
+            <Text style={styles.meta}>
+              Started: {formatImportDateTime(item.startedAt)}{item.finishedAt ? ` | Finished: ${formatImportDateTime(item.finishedAt)}` : ""}
+            </Text>
+            <AppButton
+              title="View details"
+              variant="ghost"
+              onPress={() => void handleLoadDetails(item.id)}
+              disabled={busyAction === "details"}
+            />
           </View>
         ))}
       </View>
 
-      {details ? (
+      {result ? (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Details #{details.jobId}</Text>
-          <Text style={styles.meta}>Status: {details.status}</Text>
-          <Text style={styles.meta}>
-            Processed: {details.processed}, Created: {details.created}, Skipped: {details.skipped}, Errors: {details.errors}
-          </Text>
-          {details.errorItems.length > 0 ? <Text style={styles.sectionTitle}>Errors</Text> : null}
-          {details.errorItems.map((item) => (
-            <Text key={`${item.externalId}-${item.reason}`} style={styles.meta}>
-              {item.externalId}: {item.reason}
+          <Text style={styles.sectionTitle}>Last result</Text>
+          <View style={styles.card}>
+            <Text style={styles.itemTitle}>Job #{result.jobId}</Text>
+            <Text style={styles.meta}>Status: {result.status}</Text>
+            <Text style={styles.meta}>
+              Processed: {result.processed} | Created: {result.created} | Skipped: {result.skipped} | Errors: {result.errors}
             </Text>
+            <Text style={styles.meta}>Started: {formatImportDateTime(result.startedAt)}</Text>
+            <Text style={styles.meta}>Finished: {formatImportDateTime(result.finishedAt)}</Text>
+          </View>
+
+          {visibleItems.map((item) => (
+            <View key={`${item.externalId}-${item.status}`} style={styles.card}>
+              <Text style={styles.itemTitle}>{getImportItemSummary(item)}</Text>
+              <Text style={styles.meta}>Status: {item.status}</Text>
+              <Text style={styles.meta}>
+                Source: {item.sourceProvider ?? "Unknown"}{item.receivedAt ? ` | Received: ${formatImportDateTime(item.receivedAt)}` : ""}
+              </Text>
+              <Text style={styles.meta}>
+                {(item.billingPeriod ?? "Period unknown")}{item.nextBillingDate ? ` | Next billing: ${item.nextBillingDate}` : ""}
+              </Text>
+              {item.category ? <Text style={styles.meta}>Category: {item.category}</Text> : null}
+              {item.reason ? <Text style={styles.meta}>Reason: {item.reason}</Text> : null}
+            </View>
+          ))}
+
+          {result.errorItems.map((item) => (
+            <View key={`${item.externalId ?? "message"}-${item.reason}`} style={styles.card}>
+              <Text style={styles.itemTitle}>{item.externalId ?? "message"}</Text>
+              <Text style={styles.meta}>{item.reason}</Text>
+            </View>
           ))}
         </View>
       ) : null}
@@ -359,65 +436,88 @@ const ImportScreen = () => {
 
 const createStyles = (colors: AppPalette) =>
   StyleSheet.create({
-  container: {
-    padding: 16,
-    gap: 14,
-    backgroundColor: colors.bg
-  },
-  title: {
-    fontSize: 30,
-    fontWeight: "900",
-    color: colors.text
-  },
-  section: {
-    gap: 8,
-    backgroundColor: colors.bgElevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    padding: 16
-  },
-  sectionTitle: {
-    color: colors.text,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.6
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.bgSoft,
-    color: colors.text,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10
-  },
-  textArea: {
-    minHeight: 100,
-    textAlignVertical: "top"
-  },
-  card: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.bgElevated,
-    borderRadius: 14,
-    padding: 12,
-    gap: 6
-  },
-  actions: {
-    flexDirection: "row",
-    gap: 8
-  },
-  error: {
-    color: colors.danger
-  },
-  meta: {
-    color: colors.textMuted
-  },
-  itemTitle: {
-    color: colors.text,
-    fontWeight: "800"
-  }
-});
+    container: {
+      padding: 16,
+      gap: 14,
+      backgroundColor: colors.bg
+    },
+    title: {
+      fontSize: 30,
+      fontWeight: "900",
+      color: colors.text
+    },
+    subtitle: {
+      color: colors.textMuted,
+      lineHeight: 20
+    },
+    banner: {
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderWidth: 1
+    },
+    bannerSuccess: {
+      backgroundColor: colors.bgSoft,
+      borderColor: colors.accent
+    },
+    bannerError: {
+      backgroundColor: colors.bgSoft,
+      borderColor: colors.danger
+    },
+    bannerText: {
+      color: colors.text,
+      fontWeight: "700"
+    },
+    section: {
+      gap: 8,
+      backgroundColor: colors.bgElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 16,
+      padding: 16
+    },
+    sectionTitle: {
+      color: colors.text,
+      fontWeight: "800",
+      textTransform: "uppercase",
+      letterSpacing: 0.6
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.bgSoft,
+      color: colors.text,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10
+    },
+    textArea: {
+      minHeight: 100,
+      textAlignVertical: "top"
+    },
+    card: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      padding: 12,
+      gap: 6
+    },
+    actions: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8
+    },
+    error: {
+      color: colors.danger
+    },
+    meta: {
+      color: colors.textMuted
+    },
+    itemTitle: {
+      color: colors.text,
+      fontWeight: "800"
+    }
+  });
 
 export default ImportScreen;

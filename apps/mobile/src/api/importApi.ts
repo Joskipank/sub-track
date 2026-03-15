@@ -13,5 +13,9 @@ export const importApi = {
   getById: async (id: number): Promise<ImportResult> => {
     const response = await httpClient.get<ImportResult>(`/api/v1/imports/${id}`);
     return response.data;
+  },
+  syncMailbox: async (provider: string): Promise<ImportResult> => {
+    const response = await httpClient.post<ImportResult>(`/api/v1/imports/${provider}/sync`);
+    return response.data;
   }
 };

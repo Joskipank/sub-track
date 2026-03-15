@@ -1,16 +1,7 @@
 import { httpClient } from "./httpClient";
+import type { ImportConsentStatus } from "../types/import";
 
 export type ImportConsentProvider = "GMAIL";
-export type ImportConsentState = "GRANTED" | "REVOKED" | "NOT_GRANTED";
-
-export interface ImportConsentStatus {
-  provider: ImportConsentProvider;
-  status: ImportConsentState;
-  scope?: string;
-  grantedAt?: string | null;
-  revokedAt?: string | null;
-  integrationStatus?: string;
-}
 
 export const consentApi = {
   getImportConsentStatus: async (provider: ImportConsentProvider): Promise<ImportConsentStatus> => {
