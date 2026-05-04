@@ -1,4 +1,16 @@
 package com.subscriptionmanager.integration.dto;
 
-public record IntegrationConnectionResponse(Long id, String provider, String status) {
+import java.time.OffsetDateTime;
+
+public record IntegrationConnectionResponse(
+        Long id,
+        String provider,
+        String status,
+        String externalAccountEmail,
+        OffsetDateTime connectedAt,
+        OffsetDateTime updatedAt,
+        OffsetDateTime lastSyncAt,
+        String lastErrorCode,
+        String lastErrorMessage
+) {
 }

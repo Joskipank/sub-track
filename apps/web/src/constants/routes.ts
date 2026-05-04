@@ -1,5 +1,11 @@
-﻿export const ROUTES = {
+export const ROUTES = {
   LOGIN: "/login",
   REGISTER: "/register",
-  DASHBOARD: "/"
+  DASHBOARD: "/dashboard",
+  SUBSCRIPTIONS: "/subscriptions",
+  UPCOMING: "/upcoming",
+  REMINDERS: "/reminders",
+  ANALYTICS: "/analytics",
+  IMPORT: "/import",
+  SETTINGS: "/settings"
 };

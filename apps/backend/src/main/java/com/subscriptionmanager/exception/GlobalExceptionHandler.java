@@ -1,7 +1,11 @@
 package com.subscriptionmanager.exception;
 
+import com.subscriptionmanager.importing.exception.ImportConsentRequiredException;
+import com.subscriptionmanager.importing.exception.MailboxConnectionRequiredException;
+import com.subscriptionmanager.importing.exception.MailboxReauthRequiredException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -12,6 +16,33 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ImportConsentRequiredException.class)
+    public ResponseEntity<Map<String, Object>> handleImportConsentRequired(ImportConsentRequiredException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("code", ImportConsentRequiredException.ERROR_CODE);
+        body.put("message", ex.getMessage());
+        body.put("provider", ex.getProvider().name());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
+    @ExceptionHandler(MailboxConnectionRequiredException.class)
+    public ResponseEntity<Map<String, Object>> handleMailboxConnectionRequired(MailboxConnectionRequiredException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("code", MailboxConnectionRequiredException.ERROR_CODE);
+        body.put("message", ex.getMessage());
+        body.put("provider", ex.getProvider().name());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    @ExceptionHandler(MailboxReauthRequiredException.class)
+    public ResponseEntity<Map<String, Object>> handleMailboxReauthRequired(MailboxReauthRequiredException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("code", MailboxReauthRequiredException.ERROR_CODE);
+        body.put("message", ex.getMessage());
+        body.put("provider", ex.getProvider().name());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
 
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<Map<String, String>> handleApiException(ApiException ex) {
@@ -29,6 +60,12 @@ public class GlobalExceptionHandler {
         body.put("message", "Validation failed");
         body.put("errors", errors);
         return ResponseEntity.badRequest().body(body);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<Map<String, String>> handleAuthentication(AuthenticationException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("message", "Invalid credentials"));
     }
 
     @ExceptionHandler(Exception.class)

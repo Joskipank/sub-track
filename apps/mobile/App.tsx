@@ -1,32 +1,29 @@
-﻿import { StatusBar } from "expo-status-bar";
-import { StyleSheet, Text, View } from "react-native";
+import "react-native-gesture-handler";
+import React from "react";
+import { NavigationContainer } from "@react-navigation/native";
+import { StatusBar } from "expo-status-bar";
+import { AuthProvider } from "./src/context/AuthContext";
+import { SettingsProvider, useI18n } from "./src/context/SettingsContext";
+import RootNavigator from "./src/navigation/RootNavigator";
+import { getNavigationTheme } from "./src/theme/theme";
+
+const AppShell = () => {
+  const { theme } = useI18n();
+
+  return (
+    <AuthProvider>
+      <NavigationContainer theme={getNavigationTheme(theme)}>
+        <StatusBar style={theme === "light" ? "dark" : "light"} />
+        <RootNavigator />
+      </NavigationContainer>
+    </AuthProvider>
+  );
+};
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>SubTrack Mobile</Text>
-      <Text style={styles.subtitle}>Expo + React Native + TypeScript is ready.</Text>
-      <StatusBar style="auto" />
-    </View>
+    <SettingsProvider>
+      <AppShell />
+    </SettingsProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#ffffff",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 24
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "700",
-    marginBottom: 8
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#4b5563",
-    textAlign: "center"
-  }
-});

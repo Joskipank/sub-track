@@ -3,7 +3,6 @@ package com.subscriptionmanager.user.controller;
 import com.subscriptionmanager.user.dto.UserProfileResponse;
 import com.subscriptionmanager.user.service.UserService;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -18,7 +17,7 @@ public class UserController {
     }
 
     @GetMapping("/me")
-    public UserProfileResponse me(@RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId) {
-        return userService.me(userId);
+    public UserProfileResponse me() {
+        return userService.me();
     }
 }
