@@ -1,112 +1,58 @@
-﻿# SubTrack
+﻿# Backend
 
-**SubTrack** — fullstack-приложение для управления подписками.  
-Проект позволяет пользователю отслеживать свои подписки, смотреть аналитику расходов, получать уведомления о ближайших списаниях и импортировать данные через CSV.
+Spring Boot backend for SubTrack.
 
-## Возможности проекта
+## Local startup (MVP)
 
-- регистрация и авторизация пользователей
-- JWT-аутентификация
-- добавление, редактирование и удаление подписок
-- категории подписок
-- аналитика расходов
-- уведомления о предстоящем списании
-- прогноз месячных и годовых расходов
-- синхронизация между Web и Mobile через единый Backend API
-- импорт подписок через CSV
-- Swagger / OpenAPI
-- demo seed-данные для тестирования
+1. Start PostgreSQL:
+   - `docker compose -f apps/backend/docker-compose.yml up -d`
+2. Bootstrap environment files (recommended):
+   - `bash scripts/setup/bootstrap-env.sh`
+   - or `powershell -ExecutionPolicy Bypass -File scripts/setup/bootstrap-env.ps1`
+3. Configure environment variables (use `apps/backend/.env.example` as a template).
+   - Backend automatically loads `.env` from `apps/backend/.env` and repository root `.env` if files exist.
+   - `SPRING_PROFILES_ACTIVE=dev`
+   - `SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/subtrack`
+   - `SPRING_DATASOURCE_USERNAME=subtrack`
+   - `SPRING_DATASOURCE_PASSWORD=subtrack`
+   - `JWT_SECRET` must be at least 32 bytes for HS256.
+   - Login protection defaults (override in env when needed):
+     - `APP_SECURITY_LOGIN_RATE_LIMIT_MAX_ATTEMPTS=20`
+     - `APP_SECURITY_LOGIN_RATE_LIMIT_WINDOW=1m`
+     - `APP_SECURITY_LOGIN_BRUTE_FORCE_MAX_FAILURES=5`
+     - `APP_SECURITY_LOGIN_BRUTE_FORCE_COOLDOWN=15m`
+     - `APP_SECURITY_LOGIN_BRUTE_FORCE_ENTRY_TTL=24h`
+   - Registration password policy: 10-72 chars, at least 1 lowercase, 1 uppercase, 1 digit, 1 special char, no spaces.
+   - Enable Gmail mailbox flow with `IMPORT_PROVIDERS_GMAIL_MAILBOX_ENABLED=true`.
+   - Keep Gmail provider enabled with `IMPORT_PROVIDERS_GMAIL_ENABLED=true`.
+   - Keep `IMPORT_PROVIDERS_GMAIL_MAILBOX_STARTUP_VALIDATION_ENABLED=false` in `dev` profile.
+   - Configure `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REDIRECT_URI`, and `GMAIL_FRONTEND_REDIRECT_URI`.
+   - Configure `INTEGRATIONS_TOKEN_ENCRYPTION_SECRET` and `INTEGRATIONS_OAUTH_STATE_SECRET` (or ensure `JWT_SECRET` is set, because these values fallback to it).
+   - In `dev`, backend starts even with empty Gmail OAuth client credentials, but OAuth start endpoint returns a clear configuration error until values are set.
+   - Keep OAuth state cleanup enabled in production (`INTEGRATIONS_OAUTH_STATE_CLEANUP_ENABLED=true`), otherwise backend startup is blocked in `prod` profile.
+4. Run backend:
+   - `cd apps/backend`
+   - `./gradlew bootRun` (Linux/macOS)
+   - `gradlew.bat bootRun` (Windows)
 
----
+Auth API behavior note:
+- `POST /api/v1/auth/login` can return `429 Too Many Requests` with `Retry-After` when IP rate-limit or brute-force lock is triggered.
 
-## Технологический стек
+Support email draft flow:
+- `GET /api/v1/subscriptions/{id}/support-email-draft?action=CANCEL|PAUSE`
+- `POST /api/v1/subscriptions/{id}/support-email-events`
+- New endpoints are backward-compatible and do not mutate subscription status automatically.
 
-### Backend
-- Java
-- Spring Boot
-- Spring Security
-- JWT
-- PostgreSQL
-- Flyway / Liquibase
-- Swagger / OpenAPI
+## Gmail mailbox flow quick validation
 
-### Web
-- React
-- TypeScript
-- Vite
+- Feature flag check:
+  - `bash scripts/utils/check-gmail-import.sh http://localhost:8080`
+- Real OAuth check (requires real Google OAuth credentials):
+  - authenticate in app;
+  - call `POST /api/v1/integrations/GMAIL/oauth/start`;
+  - complete Google consent;
+  - verify `GET /api/v1/integrations/GMAIL` is not `NOT_CONNECTED`.
 
-### Mobile
-- React Native
-- Expo
-- TypeScript
+## Stop local PostgreSQL
 
-### Infra
-- Docker
-- Docker Compose
-
----
-
-## Архитектура проекта
-
-Проект организован в виде **monorepo**.
-
-- **Backend** — один Spring Boot backend-монолит
-- **Web** — React-клиент
-- **Mobile** — React Native / Expo-клиент
-- **Database** — PostgreSQL
-- **Docs** — документация, сценарий демо, инструкции запуска
-- **Infra / Scripts** — docker-compose, env-примеры, вспомогательные скрипты
-
-Все клиенты работают с одним REST API, поэтому синхронизация между Web и Mobile реализуется через Backend.
-
----
-
-## Структура проекта
-
-```text
-subtrack/
-├─ README.md
-├─ .gitignore
-├─ .editorconfig
-├─ .env.example
-├─ apps/
-│  ├─ backend/
-│  ├─ web/
-│  └─ mobile/
-├─ database/
-│  ├─ migrations/
-│  ├─ seed/
-│  └─ schema/
-├─ docs/
-│  ├─ api-notes/
-│  ├─ demo-script/
-│  └─ launch-guide/
-├─ infra/
-│  ├─ docker-compose.yml
-│  ├─ docker/
-│  └─ env/
-└─ scripts/
-   ├─ start/
-   ├─ db/
-   └─ utils/
-```
-
----
-
-## API Contract Policy
-
-API-контракт backend считается стабильным и self-serve.  
-Детальные правила и handoff: [BACKEND_HANDOFF.md](./BACKEND_HANDOFF.md).
-
-Обязательные требования для любого PR с изменением API:
-- обновить OpenAPI (`docs/api-notes/subtrack-openapi.yaml`) в том же PR;
-- обновить/добавить backend тесты под изменённое поведение;
-- обновить docs/demo сценарии при изменении внешнего поведения API;
-- не допускать “тихих” breaking changes (только с явной депрекацией/миграционными заметками).
-
-Автоматическая проверка контракта:
-- локальный запуск полного набора проверок:
-  - `powershell -ExecutionPolicy Bypass -File scripts/contracts/run-contract-checks.ps1`
-- обновление baseline только при осознанном контрактном изменении:
-  - `powershell -ExecutionPolicy Bypass -File scripts/contracts/update-openapi-baseline.ps1 -ConfirmContractChange`
-- детали: `docs/api-notes/contract-guard.md`
+- `docker compose -f apps/backend/docker-compose.yml down`
